@@ -63,8 +63,8 @@ async fn run_server(key: Option<String>) -> Result<(), Box<dyn std::error::Error
     
     println!("🎧 Server listening on: {}", private_key.id52());
     
-    fastn_p2p::handle_requests(EchoProtocol::Echo, echo_handler)
-        .listen(private_key)
+    fastn_p2p::listen(private_key)
+        .handle_requests(EchoProtocol::Echo, echo_handler)
         .await?;
         
     Ok(())

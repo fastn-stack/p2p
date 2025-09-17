@@ -1,10 +1,17 @@
 /// Server builder for clean multi-protocol server setup
+/// 
+/// Also implements Future so you can .await on it to start the server
 pub struct ServerBuilder {
+    private_key: fastn_id52::SecretKey,
     // TODO: Store protocol handlers here
 }
 
 impl ServerBuilder {
-    /// Add more request/response handlers to this builder
+    pub fn new(private_key: fastn_id52::SecretKey) -> Self {
+        Self { private_key }
+    }
+
+    /// Add a request/response handler for a protocol
     pub fn handle_requests<P, F, Fut, INPUT, OUTPUT, ERROR>(self, _protocol: P, _handler: F) -> Self 
     where
         P: serde::Serialize + std::fmt::Debug,
@@ -18,7 +25,7 @@ impl ServerBuilder {
         self
     }
 
-    /// Add more streaming handlers to this builder
+    /// Add a streaming handler for a protocol
     pub fn handle_streams<P, F, Fut>(self, _protocol: P, _handler: F) -> Self
     where
         P: serde::Serialize + std::fmt::Debug,
@@ -28,43 +35,25 @@ impl ServerBuilder {
         // TODO: Store the handler for protocol dispatch
         self
     }
+}
 
-    /// Start listening for connections with the given private key
-    pub async fn listen(self, private_key: fastn_id52::SecretKey) -> Result<(), Box<dyn std::error::Error>> {
+// Implement Future for ServerBuilder so it can be awaited
+impl std::future::Future for ServerBuilder {
+    type Output = Result<(), Box<dyn std::error::Error>>;
+
+    fn poll(self: std::pin::Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         // TODO: Implement actual server listening logic
-        // For now, use the existing listen mechanism as placeholder
-        println!("🔧 Server builder listening on {} - TODO: implement protocol dispatch", private_key.id52());
+        // For now, return a placeholder
+        println!("🔧 Server listening on {} - TODO: implement protocol dispatch", self.private_key.id52());
         
-        // Placeholder: just sleep to prevent immediate exit
-        loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        }
+        // Return Pending to simulate ongoing server (in real impl, this would manage the server loop)
+        std::task::Poll::Pending
     }
 }
 
-/// Start a server builder with a request/response handler
-pub fn handle_requests<P, F, Fut, INPUT, OUTPUT, ERROR>(protocol: P, handler: F) -> ServerBuilder 
-where
-    P: serde::Serialize + std::fmt::Debug,
-    F: Fn(INPUT) -> Fut + Send + Sync + 'static,
-    Fut: std::future::Future<Output = Result<OUTPUT, ERROR>> + Send,
-    INPUT: serde::de::DeserializeOwned,
-    OUTPUT: serde::Serialize,
-    ERROR: serde::Serialize,
-{
-    // TODO: Store the handler for protocol dispatch
-    ServerBuilder {}
+/// Start listening for P2P connections
+/// 
+/// Returns a ServerBuilder that you can add handlers to, then await to start the server
+pub fn listen(private_key: fastn_id52::SecretKey) -> ServerBuilder {
+    ServerBuilder::new(private_key)
 }
-
-/// Start a server builder with a streaming handler
-pub fn handle_streams<P, F, Fut>(protocol: P, handler: F) -> ServerBuilder
-where
-    P: serde::Serialize + std::fmt::Debug,
-    F: Fn(crate::server::Session<P>) -> Fut + Send + Sync + 'static,
-    Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send,
-{
-    // TODO: Store the handler for protocol dispatch
-    ServerBuilder {}
-}
-
-// Note: server() function removed - just chain handle_requests/handle_streams directly

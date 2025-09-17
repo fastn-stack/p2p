@@ -51,11 +51,11 @@ pub use coordination::{cancelled, shutdown, spawn};
 pub use globals::{graceful, pool};
 
 // Server builder API - new clean interface
-pub use server::{handle_requests, handle_streams, ServerBuilder};
+pub use server::builder_listen as listen;
 
 // Legacy API exports (TODO: phase out in favor of builder API)
 pub use server::{
     GetInputError, HandleRequestError, ListenerAlreadyActiveError, ListenerNotFoundError, Request,
-    ResponseHandle, SendError, active_listener_count, active_listeners, is_listening, listen,
-    stop_listening, Session,
+    ResponseHandle, SendError, active_listener_count, active_listeners, is_listening, 
+    listen as legacy_listen, stop_listening, Session,
 };
