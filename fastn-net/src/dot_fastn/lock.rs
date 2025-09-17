@@ -21,5 +21,5 @@ pub fn malai_lock_file(dir: &std::path::Path) -> eyre::Result<std::fs::File> {
 pub fn exclusive(lock_file: &std::fs::File) -> eyre::Result<()> {
     lock_file
         .try_lock()
-        .wrap_err_with(|| "failed to take exclusive lock")
+        .wrap_err("failed to take exclusive lock")
 }

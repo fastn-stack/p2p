@@ -29,13 +29,14 @@ async-lock = "3"
 async-stream = "0.3.6"
 async-trait = "0.1"
 base64 = "0.22"
+bb8 = "0.9"
 bytes = "1"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 colored = "3"
+data-encoding = "2"
 directories = "6"
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
-data-encoding = "2"
 eyre = "0.6"
 fastn-context = "0.1"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
@@ -61,6 +62,13 @@ tokio-util = "0.7"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 trait-variant = "0.1"
+
+# Additional dependencies
+atty = "0.2"
+tempfile = "3"
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full", "extra-traits"] }
 
 # Local workspace dependencies
 fastn-id52 = { path = "fastn-id52" }

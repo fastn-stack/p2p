@@ -2,6 +2,7 @@
 
 use futures_util::stream::StreamExt;
 use serde::{Deserialize, Serialize};
+use fastn_p2p::client::call;
 
 /// Application-specific protocols - meaningful names instead of Ping/Http lies!
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
@@ -193,9 +194,9 @@ async fn run_test_client(
         message: "Hello, P2P world!".to_string(),
     };
 
-    let echo_result: EchoResult = fastn_p2p::call(
+    let echo_result: EchoResult = call(
         client_secret.clone(),
-        server_public_key,
+        *server_public_key,
         AppProtocol::Echo,
         echo_request,
     )
@@ -222,9 +223,9 @@ async fn run_test_client(
         b: 7.0,
     };
 
-    let math_result: MathResult = fastn_p2p::call(
+    let math_result: MathResult = call(
         client_secret.clone(),
-        server_public_key,
+        *server_public_key,
         AppProtocol::Math,
         math_request,
     )
@@ -248,9 +249,9 @@ async fn run_test_client(
         b: 0.0,
     };
 
-    let error_result: MathResult = fastn_p2p::call(
+    let error_result: MathResult = call(
         client_secret,
-        server_public_key,
+        *server_public_key,
         AppProtocol::Math,
         error_request,
     )
@@ -325,9 +326,9 @@ async fn load_test_100_requests(
                 message: format!("Request #{}", i),
             };
 
-            let result: EchoResult = fastn_p2p::call(
+            let result: EchoResult = call(
                 client_secret.clone(),
-                server_public_key,
+                *server_public_key,
                 AppProtocol::Echo,
                 request,
             )
@@ -345,9 +346,9 @@ async fn load_test_100_requests(
                 b: 100.0,
             };
 
-            let result: MathResult = fastn_p2p::call(
+            let result: MathResult = call(
                 client_secret.clone(),
-                server_public_key,
+                *server_public_key,
                 AppProtocol::Math,
                 request,
             )
@@ -421,9 +422,9 @@ mod tests {
                     message: "Hello P2P world!".to_string(),
                 };
 
-                let result: EchoResult = fastn_p2p::call(
+                let result: EchoResult = call(
                     client_secret,
-                    &server_public_clone,
+                    server_public_clone,
                     AppProtocol::Echo,
                     request,
                 )
