@@ -67,7 +67,4 @@ where
     ServerBuilder {}
 }
 
-/// Create a new empty server builder (for multiple protocols)
-pub fn server() -> ServerBuilder {
-    ServerBuilder {}
-}
+// Note: server() function removed - just chain handle_requests/handle_streams directly

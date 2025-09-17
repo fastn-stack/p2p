@@ -7,11 +7,8 @@
 //!   request_response server [key]       # Start server mode  
 //!   request_response client <id52> [msg] # Send request to server
 
-use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
-
 // Protocol Definition - shared between client and server
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 pub enum EchoProtocol { Echo }
 
 impl std::fmt::Display for EchoProtocol {
@@ -20,24 +17,24 @@ impl std::fmt::Display for EchoProtocol {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct EchoRequest { pub message: String }
 
-#[derive(Serialize, Deserialize, Debug)]  
+#[derive(serde::Serialize, serde::Deserialize, Debug)]  
 pub struct EchoResponse { pub echoed: String }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub enum EchoError { InvalidMessage(String) }
 
 type EchoResult = Result<EchoResponse, EchoError>;
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 struct Args {
     #[command(subcommand)]
     mode: Mode,
 }
 
-#[derive(Subcommand)]
+#[derive(clap::Subcommand)]
 enum Mode {
     /// Start server (listens for requests)
     Server {
@@ -57,7 +54,7 @@ enum Mode {
 
 #[fastn_context::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
+    let args = <Args as clap::Parser>::parse();
 
     match args.mode {
         Mode::Server { key } => run_server(key).await,

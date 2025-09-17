@@ -10,7 +10,7 @@ pub mod request;
 pub mod session;
 
 // Public API exports - no use statements, direct qualification
-pub use builder::{server, handle_requests, handle_streams, ServerBuilder};
+pub use builder::{handle_requests, handle_streams, ServerBuilder};
 pub use handle::{ResponseHandle, SendError};
 pub use listener::listen;
 pub use management::{

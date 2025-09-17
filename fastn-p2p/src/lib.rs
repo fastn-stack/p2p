@@ -51,7 +51,7 @@ pub use coordination::{cancelled, shutdown, spawn};
 pub use globals::{graceful, pool};
 
 // Server builder API - new clean interface
-pub use server::{server, handle_requests, handle_streams, ServerBuilder};
+pub use server::{handle_requests, handle_streams, ServerBuilder};
 
 // Legacy API exports (TODO: phase out in favor of builder API)
 pub use server::{
