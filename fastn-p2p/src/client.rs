@@ -15,7 +15,6 @@ where
         + for<'de> serde::Deserialize<'de> 
         + Clone
         + PartialEq
-        + std::fmt::Display
         + std::fmt::Debug
         + Send
         + Sync

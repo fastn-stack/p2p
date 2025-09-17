@@ -7,7 +7,7 @@ impl ServerBuilder {
     /// Add more request/response handlers to this builder
     pub fn handle_requests<P, F, Fut, INPUT, OUTPUT, ERROR>(self, _protocol: P, _handler: F) -> Self 
     where
-        P: serde::Serialize + std::fmt::Display,
+        P: serde::Serialize + std::fmt::Debug,
         F: Fn(INPUT) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = Result<OUTPUT, ERROR>> + Send,
         INPUT: serde::de::DeserializeOwned,
@@ -21,7 +21,7 @@ impl ServerBuilder {
     /// Add more streaming handlers to this builder
     pub fn handle_streams<P, F, Fut>(self, _protocol: P, _handler: F) -> Self
     where
-        P: serde::Serialize + std::fmt::Display,
+        P: serde::Serialize + std::fmt::Debug,
         F: Fn(crate::server::Session<P>) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send,
     {
@@ -45,7 +45,7 @@ impl ServerBuilder {
 /// Start a server builder with a request/response handler
 pub fn handle_requests<P, F, Fut, INPUT, OUTPUT, ERROR>(protocol: P, handler: F) -> ServerBuilder 
 where
-    P: serde::Serialize + std::fmt::Display,
+    P: serde::Serialize + std::fmt::Debug,
     F: Fn(INPUT) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = Result<OUTPUT, ERROR>> + Send,
     INPUT: serde::de::DeserializeOwned,
@@ -59,7 +59,7 @@ where
 /// Start a server builder with a streaming handler
 pub fn handle_streams<P, F, Fut>(protocol: P, handler: F) -> ServerBuilder
 where
-    P: serde::Serialize + std::fmt::Display,
+    P: serde::Serialize + std::fmt::Debug,
     F: Fn(crate::server::Session<P>) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send,
 {

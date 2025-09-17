@@ -11,11 +11,7 @@
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 pub enum EchoProtocol { Echo }
 
-impl std::fmt::Display for EchoProtocol {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "echo")
-    }
-}
+// No Display implementation needed - Debug and Serialize are sufficient!
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct EchoRequest { pub message: String }

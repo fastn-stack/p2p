@@ -8,7 +8,6 @@ where
         + for<'de> serde::Deserialize<'de>
         + Clone
         + PartialEq
-        + std::fmt::Display
         + std::fmt::Debug
         + Send
         + Sync
@@ -59,7 +58,7 @@ where
             }
         };
 
-        tracing::debug!("Accepted {user_protocol} connection from peer: {peer_key}");
+        tracing::debug!("Accepted {user_protocol:?} connection from peer: {peer_key}");
 
         // Create PeerRequest and send it through the channel
         let peer_request =
@@ -87,7 +86,6 @@ where
         + for<'de> serde::Deserialize<'de>
         + Clone
         + PartialEq
-        + std::fmt::Display
         + std::fmt::Debug
         + Send
         + Sync
@@ -211,7 +209,6 @@ where
         + for<'de> serde::Deserialize<'de>
         + Clone
         + PartialEq
-        + std::fmt::Display
         + std::fmt::Debug
         + Send
         + Sync
