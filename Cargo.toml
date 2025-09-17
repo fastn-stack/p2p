@@ -4,7 +4,7 @@ members = [
     "fastn-net",
     "fastn-p2p",
     "fastn-p2p-macros",
-    "fastn-p2p-test",
+    "examples",
 ]
 exclude = []
 resolver = "2"
