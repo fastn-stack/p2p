@@ -2,6 +2,7 @@
 //!
 //! This module provides high-level, type-safe APIs for implementing P2P servers.
 
+pub mod builder;
 pub mod handle;
 pub mod listener;
 pub mod management;
@@ -9,6 +10,7 @@ pub mod request;
 pub mod session;
 
 // Public API exports - no use statements, direct qualification
+pub use builder::{server, handle_requests, handle_streams, ServerBuilder};
 pub use handle::{ResponseHandle, SendError};
 pub use listener::listen;
 pub use management::{

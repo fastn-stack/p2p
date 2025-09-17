@@ -4,15 +4,13 @@
 //! Send a request and get a response back - like HTTP but over P2P.
 //! 
 //! Usage: 
-//!   request_response receiver [key]     # Start server mode  
-//!   request_response sender <id52> [msg] # Send request to server
+//!   request_response server [key]       # Start server mode  
+//!   request_response client <id52> [msg] # Send request to server
 
 use clap::{Parser, Subcommand};
-use fastn_p2p::client::call;
-use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 
-// Protocol Definition - shared between sender and receiver
+// Protocol Definition - shared between client and server
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum EchoProtocol { Echo }
 
@@ -41,14 +39,14 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Mode {
-    /// Start receiver (listens for messages)
-    Receiver {
+    /// Start server (listens for requests)
+    Server {
         /// Optional private key
         #[arg(long)]
         key: Option<String>,
     },
-    /// Send message to receiver  
-    Sender {
+    /// Send request to server  
+    Client {
         /// Target ID52
         target: String,
         /// Message to send
@@ -62,42 +60,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     match args.mode {
-        Mode::Receiver { key } => run_receiver(key).await,
-        Mode::Sender { target, message } => run_sender(target, message).await,
+        Mode::Server { key } => run_server(key).await,
+        Mode::Client { target, message } => run_client(target, message).await,
     }
 }
 
-async fn run_receiver(key: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
-    let private_key = match key {
-        Some(k) => k.parse()?,
-        None => fastn_id52::SecretKey::generate(),
-    };
-
-    println!("🎧 Listening on: {}", private_key.id52());
+async fn run_server(key: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    let private_key = examples::key_from_str_or_generate(key.as_deref())?;
     
-    let protocols = [EchoProtocol::Echo];
-    let mut stream = fastn_p2p::listen!(private_key, &protocols);
-
-    while let Some(request) = stream.next().await {
-        let request = request?;
-        println!("📨 Message from {}", request.peer().id52());
+    println!("🎧 Server listening on: {}", private_key.id52());
+    
+    fastn_p2p::handle_requests(EchoProtocol::Echo, echo_handler)
+        .listen(private_key)
+        .await?;
         
-        request.handle(|req: EchoRequest| async move {
-            println!("💬 Received: {}", req.message);
-            Ok::<EchoResponse, EchoError>(EchoResponse { echoed: format!("Echo: {}", req.message) })
-        }).await?;
-    }
     Ok(())
 }
 
-async fn run_sender(target: String, message: String) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_client(target: String, message: String) -> Result<(), Box<dyn std::error::Error>> {
     let private_key = fastn_id52::SecretKey::generate();
-    let target_key: fastn_id52::PublicKey = target.parse()?;
+    let target_key = examples::parse_peer_id(&target)?;
 
     println!("📤 Sending '{}' to {}", message, target);
 
     let request = EchoRequest { message };
-    let result: EchoResult = call(
+    let result: EchoResult = fastn_p2p::client::call(
         private_key,
         target_key,
         EchoProtocol::Echo,
@@ -109,4 +96,10 @@ async fn run_sender(target: String, message: String) -> Result<(), Box<dyn std::
         Err(error) => println!("❌ Error: {:?}", error),
     }
     Ok(())
+}
+
+// Request handler function - clean and simple!
+async fn echo_handler(req: EchoRequest) -> Result<EchoResponse, EchoError> {
+    println!("💬 Received: {}", req.message);
+    Ok(EchoResponse { echoed: format!("Echo: {}", req.message) })
 }
