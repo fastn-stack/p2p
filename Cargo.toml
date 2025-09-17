@@ -1,7 +1,9 @@
 [workspace]
 members = [
+    "fastn-id52",
     "fastn-net",
     "fastn-p2p",
+    "fastn-p2p-macros",
     "fastn-p2p-test",
 ]
 exclude = []
@@ -61,6 +63,7 @@ tracing-subscriber = "0.3"
 trait-variant = "0.1"
 
 # Local workspace dependencies
+fastn-id52 = { path = "fastn-id52" }
 fastn-net = { path = "fastn-net" }
 fastn-p2p = { path = "fastn-p2p" }
 
