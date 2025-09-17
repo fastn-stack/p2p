@@ -1,402 +1,389 @@
-# fastn-id52
+# fastn-p2p: High-Level Type-Safe P2P Communication
 
-[![Crates.io](https://img.shields.io/crates/v/fastn-id52.svg)](https://crates.io/crates/fastn-id52)
-[![Documentation](https://docs.rs/fastn-id52/badge.svg)](https://docs.rs/fastn-id52)
-[![License](https://img.shields.io/crates/l/fastn-id52.svg)](LICENSE)
+This crate provides a high-level, type-safe API for P2P communication in the fastn ecosystem. It builds on top of `fastn-net` but exposes only the essential, locked-down APIs that reduce the possibility of bugs through strong typing and compile-time verification.
 
-ID52 entity identity and cryptographic key management for the fastn P2P network.
+## Design Philosophy
 
-## Overview
+- **Type Safety First**: All communication uses strongly-typed REQUEST/RESPONSE/ERROR contracts
+- **Minimal Surface Area**: Only essential APIs are exposed to reduce complexity  
+- **Bug Prevention**: API design makes common mistakes impossible or unlikely
+- **Ergonomic**: High-level APIs handle boilerplate automatically
+- **Zero Boilerplate**: Main functions are clean with automatic setup/teardown
 
-`fastn-id52` provides entity identity for the fastn P2P network. Each fastn instance
-(called an "entity") is identified by an ID52 - a 52-character encoded Ed25519 public
-key that uniquely identifies the entity on the network.
+## Quick Start
 
-### What is ID52?
+### Application Entry Point
 
-ID52 is the identity of an entity on the fastn peer-to-peer network. It's a
-52-character encoding format using BASE32_DNSSEC that represents the entity's
-Ed25519 public key. This format is designed to be:
+Use `#[fastn_p2p::main]` to eliminate all boilerplate around graceful shutdown, logging, and signal handling:
 
-- Unique identifier for each fastn entity
-- Human-readable and copyable
-- DNS-compatible (can be used in subdomains)
-- URL-safe without encoding
-- Fixed length (always 52 characters)
-
-## Features
-
-- **Entity Identity**: ID52 uniquely identifies fastn entities on the P2P network
-- **ID52 Encoding**: 52-character BASE32_DNSSEC encoded public keys
-- **Ed25519 Cryptography**: Industry-standard elliptic curve signatures
-- **Key Generation**: Secure random entity key generation
-- **Signature Operations**: Sign and verify messages between entities
-- **Type Safety**: Strongly typed keys and signatures
-- **Trait Support**: 
-  - `PublicKey` and `Signature` implement `Copy`, `Clone`, `Debug`
-  - `SecretKey` implements `Clone` and custom `Debug` (shows ID52 only, not key material)
-
-## Installation
-
-### As a Library
-
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-fastn-id52 = "0.1"
+```rust
+#[fastn_p2p::main]
+async fn main() -> eyre::Result<()> {
+    let cli = Cli::parse();
+    
+    match cli.command {
+        Command::Serve { port } => {
+            fastn_p2p::spawn(start_server(port));
+        }
+        Command::Client { target } => {
+            fastn_p2p::spawn(run_client(target));
+        }
+    }
+    
+    // Automatic graceful shutdown handling
+    // No manual signal handlers needed
+}
 ```
 
-### As a CLI Tool
+### Configuration Options
 
-Install the `fastn-id52` command-line tool using cargo:
+```rust
+#[fastn_p2p::main(
+    // Logging configuration
+    logging = true,                    // Default: true - simple logging setup
+    
+    // Shutdown behavior  
+    shutdown_mode = "single_ctrl_c",   // Default: "single_ctrl_c"
+    shutdown_timeout = "30s",          // Default: "30s" - graceful shutdown timeout
+    
+    // Double Ctrl+C specific (only when shutdown_mode = "double_ctrl_c")
+    double_ctrl_c_window = "2s",       // Default: "2s" - time window for second Ctrl+C
+    status_fn = my_status_printer,     // Required for double_ctrl_c mode
+)]
+async fn main() -> eyre::Result<()> {
+    // Your application code
+}
+
+// Status function (required for double_ctrl_c mode)
+async fn my_status_printer() {
+    println!("=== Application Status ===");
+    // Custom status logic - access global registries, counters, etc.
+    println!("Active services: {}", get_active_service_count());
+    println!("P2P listeners: {}", fastn_p2p::active_listener_count());
+}
+```
+
+#### Logging Configuration
+
+The `logging` parameter supports multiple formats:
+
+```rust
+// Simple on/off (most common)
+#[fastn_p2p::main(logging = true)]   // tracing_subscriber::fmt::init()
+#[fastn_p2p::main(logging = false)]  // No logging setup
+
+// Global log level
+#[fastn_p2p::main(logging = "debug")]  // All logs at debug level
+#[fastn_p2p::main(logging = "trace")]  // All logs at trace level
+
+// Module-specific filtering (for debugging)
+#[fastn_p2p::main(logging = "fastn_p2p=trace,fastn_net=debug,warn")]
+#[fastn_p2p::main(logging = "fastn_p2p=trace,info")]
+```
+
+**Logging Examples:**
+- **Production**: `logging = true` or `logging = "info"` 
+- **Development**: `logging = "debug"`
+- **Deep debugging**: `logging = "fastn_p2p=trace,fastn_net=trace"`
+- **Specific modules**: `logging = "my_app=debug,fastn_p2p=info,warn"`
+- **No logging**: `logging = false`
+
+#### Environment Variable Override
+
+The `RUST_LOG` environment variable always takes precedence over macro configuration, allowing runtime debugging without code changes:
 
 ```bash
-cargo install fastn-id52
+# Environment variable overrides macro setting
+RUST_LOG=trace cargo run                    # Uses trace level, ignores macro
+RUST_LOG=fastn_p2p=debug cargo run         # Module-specific override
+RUST_LOG=fastn_p2p=trace,warn cargo run    # Complex filtering override
+
+# No RUST_LOG - uses macro configuration
+cargo run                                   # Uses macro parameter as fallback
+
+# No RUST_LOG, no macro parameter - uses default
+#[fastn_p2p::main]                         # Uses "info" as default
 ```
 
-Or build from source:
+**Priority Order:**
+1. **`RUST_LOG` environment variable** (highest priority)
+2. **Macro `logging` parameter** (fallback)  
+3. **Default `"info"`** (lowest priority)
+
+**Special Cases:**
+```rust
+// Even logging = false can be overridden for debugging
+#[fastn_p2p::main(logging = false)]
+```
+```bash
+RUST_LOG=debug cargo run  # Still enables logging despite logging = false
+```
+
+This design allows developers to debug any application by setting `RUST_LOG` without modifying source code.
+
+#### Shutdown Modes
+
+**Single Ctrl+C Mode (Default):**
+```rust
+#[fastn_p2p::main(shutdown_mode = "single_ctrl_c")]
+async fn main() -> eyre::Result<()> { ... }
+```
+- Ctrl+C immediately triggers graceful shutdown
+- Wait `shutdown_timeout` for tasks to complete  
+- Force exit if timeout exceeded
+- Simple and predictable for most applications
+
+**Double Ctrl+C Mode:**
+```rust
+#[fastn_p2p::main(
+    shutdown_mode = "double_ctrl_c",
+    status_fn = print_status,
+    double_ctrl_c_window = "2s"
+)]
+async fn main() -> eyre::Result<()> { ... }
+
+async fn print_status() {
+    // Show application status
+    println!("Services: {} active", get_service_count());
+}
+```
+- First Ctrl+C calls `status_fn` and waits for second Ctrl+C
+- Second Ctrl+C within `double_ctrl_c_window` triggers shutdown
+- If no second Ctrl+C, continues running normally
+- Useful for long-running services where you want to check status
+
+#### Environment Variable Overrides
+
+Several configuration options can be overridden via environment variables for debugging:
 
 ```bash
-git clone https://github.com/fastn-stack/fastn
-cd fastn/v0.5/fastn-id52
-cargo install --path .
+# Logging (always takes precedence)
+RUST_LOG=trace cargo run
+
+# Shutdown behavior (for debugging)
+FASTN_SHUTDOWN_TIMEOUT=60s cargo run
+FASTN_SHUTDOWN_MODE=single_ctrl_c cargo run
 ```
 
-## CLI Usage
+### What `#[fastn_p2p::main]` Provides
 
-The `fastn-id52` command-line tool generates entity identities for the fastn P2P network.
+1. **Automatic Runtime Setup**: Replaces `#[tokio::main]` with additional functionality
+2. **Logging Initialization**: Configurable `tracing_subscriber` setup with `RUST_LOG` override
+3. **Global Graceful Singleton**: No need to create/pass `Graceful` instances
+4. **Signal Handling**: Automatic Ctrl+C handling with configurable behavior
+5. **Status Reporting**: Optional status display on first Ctrl+C (double mode)
+6. **Automatic Shutdown**: Calls graceful shutdown with configurable timeout
 
-### Generate a New Entity Identity
+## Server API
 
-```bash
-# Default: Store in system keyring (most secure)
-fastn-id52 generate
-# Output: ID52 printed to stdout, secret key stored in keyring
-
-# Explicitly use keyring (same as default)
-fastn-id52 generate --keyring
-fastn-id52 generate -k
-# Output: ID52 printed to stdout, secret key stored in keyring
-
-# Save to file (requires explicit flag for security)
-fastn-id52 generate --file                  # saves to .fastn.secret-key
-fastn-id52 generate --file my-entity.key     # saves to specified file
-fastn-id52 generate -f my-entity.key
-# Output: Secret key saved to file, ID52 printed to stderr
-
-# Print to stdout
-fastn-id52 generate --file -                 # prints secret to stdout, ID52 to stderr
-fastn-id52 generate -f -                     # same as above
-# Output: Secret key (hex) printed to stdout, ID52 printed to stderr
-
-# Short output (only ID52, no descriptive messages) - ideal for scripting
-fastn-id52 generate --short                  # store in keyring, only ID52 on stderr
-fastn-id52 generate -s                       # same as above
-# Output: Secret key stored in keyring, only ID52 printed to stderr (no messages)
-# Use case: Capture ID52 in scripts without parsing descriptive text
-
-fastn-id52 generate -f - -s                  # secret to stdout, only ID52 on stderr
-# Output: Secret key (hex) to stdout, only ID52 to stderr (no messages)
-
-fastn-id52 generate -f my.key -s             # save to file, only ID52 on stderr
-# Output: Secret key saved to file, only ID52 to stderr (no messages)
-```
-
-### Command Reference
-
-```
-fastn-id52 - Entity identity generation for fastn peer-to-peer network
-
-Usage:
-  fastn-id52 <COMMAND>
-
-Commands:
-  generate    Generate a new entity identity
-  help        Print help message
-
-Generate command options:
-  -k, --keyring           Store in system keyring (default behavior)
-  -f, --file [FILENAME]   Save to file (use '-' for stdout)
-  -s, --short             Only print ID52, no descriptive messages (for scripting)
-
-By default, the secret key is stored in the system keyring and only the
-public key (ID52) is printed. Use -f to override this behavior.
-
-Examples:
-  fastn-id52 generate              # Store in keyring, print ID52
-                                    # Output: ID52 to stdout, secret in keyring
-  fastn-id52 generate -s           # Store in keyring, only ID52 on stderr
-                                    # Output: Only ID52 to stderr (no messages)
-  fastn-id52 generate -f -         # Print secret to stdout, ID52 to stderr
-                                    # Output: Secret (hex) to stdout, ID52 to stderr
-  fastn-id52 generate -f - -s      # Print secret to stdout, only ID52 on stderr
-                                    # Output: Secret (hex) to stdout, only ID52 to stderr
-```
-
-### Security Notes
-
-- **Default is Secure**: By default, keys are stored in the system keyring (encrypted)
-- **Explicit File Storage**: The CLI requires explicit `--file` flag to save keys to disk
-- **No Automatic Fallback**: If keyring is unavailable, the tool will error rather than fall back to file storage
-- **File Safety**: File operations check for existing files to prevent accidental overwriting
-- **Password Manager Compatible**: Keys stored in keyring can be viewed in your password manager
-
-## Library Usage
-
-### Generating Keys
+### Starting a Server
 
 ```rust
-use fastn_id52::SecretKey;
-
-// Generate a new random key pair
-let secret_key = SecretKey::generate();
-
-// Get the public key
-let public_key = secret_key.public_key();
-
-// Get the ID52 representation
-let id52 = secret_key.id52();
-println!("ID52: {}", id52);
-// Output: i66fo538lfl5ombdf6tcdbrabp4hmp9asv7nrffuc2im13ct4q60
+async fn start_echo_server(port: u16) -> eyre::Result<()> {
+    let listener = fastn_p2p::listen(Protocol::Http, ("0.0.0.0", port), None).await?;
+    
+    loop {
+        tokio::select! {
+            // Automatic cancellation support
+            _ = fastn_p2p::cancelled() => break,
+            
+            request = listener.accept() => {
+                let request = request?;
+                fastn_p2p::spawn(handle_request(request));
+            }
+        }
+    }
+    
+    Ok(())
+}
 ```
 
-### Parsing ID52 Strings
+### Handling Requests
 
 ```rust
-use fastn_id52::PublicKey;
-use std::str::FromStr;
-
-let id52 = "i66fo538lfl5ombdf6tcdbrabp4hmp9asv7nrffuc2im13ct4q60";
-let public_key = PublicKey::from_str(id52) ?;
-
-// Convert back to ID52
-assert_eq!(public_key.to_string(), id52);
+async fn handle_request(request: Request) -> eyre::Result<()> {
+    let input: EchoRequest = request.get_input().await?;
+    
+    let response = EchoResponse {
+        message: format!("Echo: {}", input.message),
+    };
+    
+    request.respond(response).await?;
+    Ok(())
+}
 ```
 
-### Signing and Verification
+## Client API
+
+### Making Type-Safe Calls
 
 ```rust
-use fastn_id52::{SecretKey, Signature};
-
-let secret_key = SecretKey::generate();
-let message = b"Hello, world!";
-
-// Sign a message
-let signature = secret_key.sign(message);
-
-// Verify the signature
-let public_key = secret_key.public_key();
-assert!(public_key.verify(message, &signature).is_ok());
-
-// Verification fails with wrong message
-assert!(public_key.verify(b"Wrong message", &signature).is_err());
+async fn run_client(target: String) -> eyre::Result<()> {
+    let request = EchoRequest {
+        message: "Hello, World!".to_string(),
+    };
+    
+    // Type-safe P2P call with shared error types
+    let response: Result<EchoResponse, EchoError> = 
+        fastn_p2p::call(&target, request).await?;
+        
+    match response {
+        Ok(echo) => println!("Received: {}", echo.message),
+        Err(e) => eprintln!("Error: {e:?}"),
+    }
+    
+    Ok(())
+}
 ```
 
-### Working with Raw Bytes
+## Task Management
+
+### Spawning Background Tasks
 
 ```rust
-use fastn_id52::{PublicKey, SecretKey};
+async fn start_background_services() {
+    // All spawned tasks are automatically tracked for graceful shutdown
+    fastn_p2p::spawn(periodic_cleanup());
+    fastn_p2p::spawn(health_check_service());
+    fastn_p2p::spawn(metrics_collector());
+}
 
-// Secret key from bytes
-let secret_bytes: [u8; 32] = [/* ... */];
-let secret_key = SecretKey::from_bytes( & secret_bytes) ?;
-
-// Public key from bytes
-let public_bytes: [u8; 32] = [/* ... */];
-let public_key = PublicKey::from_bytes( & public_bytes) ?;
-
-// Export to bytes
-let secret_bytes = secret_key.as_bytes();
-let public_bytes = public_key.as_bytes();
+async fn periodic_cleanup() {
+    loop {
+        tokio::select! {
+            _ = fastn_p2p::cancelled() => {
+                println!("Cleanup service shutting down gracefully");
+                break;
+            }
+            _ = tokio::time::sleep(Duration::from_secs(60)) => {
+                // Perform cleanup
+            }
+        }
+    }
+}
 ```
 
-### Serialization
-
-All key types implement `Display` and `FromStr` for easy serialization:
+### Cancellation Support
 
 ```rust
-use fastn_id52::{SecretKey, PublicKey};
-use std::str::FromStr;
+async fn long_running_task() {
+    loop {
+        tokio::select! {
+            // Clean cancellation when shutdown is requested
+            _ = fastn_p2p::cancelled() => {
+                println!("Task cancelled gracefully");
+                break;
+            }
+            
+            // Your work here
+            result = do_work() => {
+                match result {
+                    Ok(data) => process_data(data).await,
+                    Err(e) => eprintln!("Work failed: {e}"),
+                }
+            }
+        }
+    }
+}
+```
 
-let secret_key = SecretKey::generate();
+## Migration from Manual Graceful Management
 
-// Secret keys use hexadecimal encoding
-let secret_hex = secret_key.to_string();
-let secret_key2 = SecretKey::from_str( & secret_hex) ?;
+### Before (Tedious)
 
-// Public keys use ID52 encoding
-let public_id52 = secret_key.public_key().to_string();
-let public_key = PublicKey::from_str( & public_id52) ?;
+```rust
+#[tokio::main]
+async fn main() -> eyre::Result<()> {
+    tracing_subscriber::fmt::init();
+    let cli = Cli::parse();
+    
+    let graceful = fastn_net::Graceful::new();
+    
+    match cli.command {
+        Command::Serve { port } => {
+            let graceful_clone = graceful.clone();
+            graceful.spawn(async move {
+                start_server(port, graceful_clone).await
+            });
+        }
+    }
+    
+    graceful.shutdown().await
+}
+
+async fn start_server(port: u16, graceful: fastn_net::Graceful) -> eyre::Result<()> {
+    // Must thread graceful through all functions
+    let listener = fastn_p2p::listen(Protocol::Http, ("0.0.0.0", port), None).await?;
+    
+    loop {
+        tokio::select! {
+            _ = graceful.cancelled() => break,
+            request = listener.accept() => {
+                let graceful_clone = graceful.clone();
+                graceful.spawn(async move {
+                    handle_request(request, graceful_clone).await
+                });
+            }
+        }
+    }
+    Ok(())
+}
+```
+
+### After (Clean)
+
+```rust
+#[fastn_p2p::main]
+async fn main() -> eyre::Result<()> {
+    let cli = Cli::parse();
+    
+    match cli.command {
+        Command::Serve { port } => {
+            fastn_p2p::spawn(start_server(port));
+        }
+    }
+}
+
+async fn start_server(port: u16) -> eyre::Result<()> {
+    // No graceful parameters needed
+    let listener = fastn_p2p::listen(Protocol::Http, ("0.0.0.0", port), None).await?;
+    
+    loop {
+        tokio::select! {
+            _ = fastn_p2p::cancelled() => break,
+            request = listener.accept() => {
+                fastn_p2p::spawn(handle_request(request));
+            }
+        }
+    }
+    Ok(())
+}
 ```
 
 ## Error Handling
 
-The crate provides detailed error types for all operations:
+All fastn-p2p operations return `eyre::Result` for consistent error handling:
 
-- `ParseId52Error`: Invalid ID52 string format
-- `InvalidKeyBytesError`: Invalid key byte length or format
-- `ParseSecretKeyError`: Invalid secret key string
-- `InvalidSignatureBytesError`: Invalid signature bytes
-- `SignatureVerificationError`: Signature verification failed
-
-All errors implement `std::error::Error` and provide descriptive messages.
-
-## Security Considerations
-
-- **Secret Keys**: Never expose secret keys. They should be stored securely and
-  never logged or transmitted. The `Debug` implementation for `SecretKey` only
-  shows the public ID52, not the actual key material.
-- **Random Generation**: Uses `rand::rngs::OsRng` for cryptographically secure
-  randomness
-- **Constant Time**: Ed25519 operations are designed to be constant-time to
-  prevent timing attacks
-- **Key Derivation**: Each secret key deterministically derives its public key
-- **Debug Safety**: `SecretKey` implements a custom `Debug` that omits sensitive
-  key material, showing only `SecretKey { id52: "..." }`
+```rust
+#[fastn_p2p::main]
+async fn main() -> eyre::Result<()> {
+    let result = risky_operation().await?;
+    
+    // Any error automatically propagates and shuts down gracefully
+    Ok(())
+}
+```
 
 ## Examples
 
-### Creating a Key Pair and Saving to Files
+See the `/tests` directory for complete working examples:
 
-```rust
-use fastn_id52::SecretKey;
-use std::fs;
+- `multi_protocol_server.rs`: Multiple protocol listeners with graceful shutdown
+- `echo_client_server.rs`: Type-safe request/response communication
+- `background_tasks.rs`: Task spawning and cancellation patterns
 
-let secret_key = SecretKey::generate();
-let public_key = secret_key.public_key();
+## Advanced Usage
 
-// Save secret key (hex format)
-fs::write("secret.key", secret_key.to_string()) ?;
+For advanced use cases that need direct access to `fastn_net::Graceful`, you can still access it through `fastn_p2p::globals`, but this is discouraged for most applications.
 
-// Save public key (ID52 format)
-fs::write("public.id52", public_key.to_string()) ?;
-```
-
-### Loading Keys from Files
-
-```rust
-use fastn_id52::{SecretKey, PublicKey};
-use std::fs;
-use std::str::FromStr;
-
-// Load secret key
-let secret_hex = fs::read_to_string("secret.key") ?;
-let secret_key = SecretKey::from_str( & secret_hex) ?;
-
-// Load public key
-let public_id52 = fs::read_to_string("public.id52") ?;
-let public_key = PublicKey::from_str( & public_id52) ?;
-```
-
-### Directory-Based Key Management (Recommended Pattern)
-
-For most fastn applications, use the directory-based pattern for consistent key storage:
-
-```rust
-use fastn_id52::SecretKey;
-use std::path::Path;
-
-// Generate and save a new key
-let secret_key = SecretKey::generate();
-let key_dir = Path::new("/app/config");
-
-// Save key to directory (creates {prefix}.private-key file)
-secret_key.save_to_dir(key_dir, "ssh")?;
-// Creates: /app/config/ssh.private-key
-
-// Later, load the key back
-let (id52, loaded_key) = SecretKey::load_from_dir(key_dir, "ssh")?;
-// Loads from: /app/config/ssh.private-key or /app/config/ssh.id52
-
-println!("Loaded key for ID52: {}", id52);
-```
-
-#### Directory Pattern Features
-
-- **Consistent file naming**: `{prefix}.private-key` or `{prefix}.id52` format
-- **Automatic detection**: `load_from_dir()` finds the right file type
-- **Strict mode**: Prevents conflicts - won't load if both file types exist
-- **Overwrite protection**: `save_to_dir()` won't overwrite existing keys
-- **Directory creation**: Automatically creates directories if needed
-
-#### Typical Usage in fastn Applications
-
-```rust
-// fastn-daemon SSH initialization
-let ssh_dir = fastn_home.join("ssh");
-let secret_key = SecretKey::generate();
-secret_key.save_to_dir(&ssh_dir, "ssh")?;
-// Creates: FASTN_HOME/ssh/ssh.private-key
-
-// Later, loading the SSH key
-let (ssh_id52, ssh_key) = SecretKey::load_from_dir(&ssh_dir, "ssh")?;
-```
-
-This pattern is used throughout the fastn ecosystem for consistent key management.
-
-### Advanced Key Loading with Fallback
-
-The crate also provides comprehensive key loading with automatic fallback:
-
-```rust
-use fastn_id52::SecretKey;
-use std::path::Path;
-
-// Load from directory with automatic file detection
-// Looks for {prefix}.id52 or {prefix}.private-key files
-// Errors if both exist (strict mode)
-let (id52, secret_key) = SecretKey::load_from_dir(
-    Path::new("/path/to/entity"),
-    "entity"
-)?;
-
-// Load with ID52 and automatic fallback chain:
-// 1. System keyring
-// 2. FASTN_SECRET_KEYS_FILE or FASTN_SECRET_KEYS env var
-let secret_key = SecretKey::load_for_id52("i66fo538...")?;
-```
-
-#### Environment Variable Configuration
-
-For CI/CD and containerized environments, you can use environment variables:
-
-```bash
-# Option 1: Keys directly in environment variable
-export FASTN_SECRET_KEYS="
-i66f: hexkey1
-j77g: hexkey2
-"
-
-# Option 2: Path to file with keys (more secure)
-export FASTN_SECRET_KEYS_FILE="/secure/path/to/keys.txt"
-
-# File format (supports comments and empty lines):
-# Production keys
-i66f: hexkey1
-j77g: hexkey2
-
-# Test keys
-test1: testhexkey
-```
-
-**Important**: You cannot set both `FASTN_SECRET_KEYS_FILE` and `FASTN_SECRET_KEYS` (strict mode).
-
-Key features:
-- Flexible prefix matching (e.g., `i66f` matches `i66fo538...`)
-- Spaces around colons are optional
-- Files support comments (lines starting with `#`) and empty lines
-
-## License
-
-This project is licensed under the UPL-1.0 License - see the LICENSE file for
-details.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Acknowledgments
-
-This crate is part of the fastn ecosystem and was migrated from the original
-`kulfi-id52` implementation.
+The `#[fastn_p2p::main]` approach handles 99% of use cases while providing excellent ergonomics and maintainability.

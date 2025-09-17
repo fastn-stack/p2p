@@ -57,33 +57,32 @@ let key = SecretKey::load_for_id52("i66fo538...")?;
 
 Cannot have both set (strict mode). Files support comments (`#`) and empty lines.
 
-## CLI Tool
+## Key Generation Example
 
-The `fastn-p2p-keygen` CLI tool generates peer identities:
+Use the provided example for key generation during development:
 
 ```bash
-# Default: Generate and store in system keyring
-fastn-p2p-keygen generate
-# Output: ID52 printed to stdout, secret key stored in keyring
+# Generate keys with the example tool
+cargo run --example keygen generate
 
-# Save to file (less secure, requires explicit flag)
-fastn-p2p-keygen generate --file my-peer.key
-
-# Print to stdout
-fastn-p2p-keygen generate --file -
-
-# Short output (only ID52, no descriptive messages)
-fastn-p2p-keygen generate --short
+# See all options
+cargo run --example keygen -- --help
 ```
 
-By default, secret keys are stored securely in the system keyring and can be viewed in your password manager.
+This example demonstrates:
+- Secure key generation
+- System keyring integration  
+- File-based key storage
+- Command-line argument parsing
+
+The example code can be used as a reference for implementing key generation in your own applications.
 
 ## DNS Resolution (Optional)
 
 With the `dns` feature enabled, you can resolve public keys from DNS TXT records:
 
 ```bash
-fastn-p2p-keygen resolve example.com alice
+cargo run --example keygen resolve example.com alice
 ```
 
 This looks for a TXT record: `"alice=<52-char-public-key>"`

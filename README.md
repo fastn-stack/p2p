@@ -23,16 +23,21 @@ println!("Peer ID: {}", peer_id);
 - **🔐 Cryptographic Identity** - Ed25519 keys with ID52 encoding
 - **🔧 Key Management** - Secure storage in system keyring
 - **📡 P2P Communication** - High-level APIs for peer communication *(coming soon)*
-- **🛠️ CLI Tools** - Key generation and management utilities
+- **📝 Examples** - Reference implementations and usage patterns
 
 ## Installation
 
 ```bash
-# Library
 cargo add fastn-p2p
+```
 
-# CLI tool for key generation
-cargo install fastn-p2p
+## Examples
+
+```bash
+# Generate keys
+cargo run --example keygen
+
+# More examples coming as P2P features are added
 ```
 
 ## Documentation

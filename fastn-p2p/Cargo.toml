@@ -2,27 +2,33 @@
 name = "fastn-p2p"
 version = "0.1.0"
 edition.workspace = true
-authors.workspace = true
-description = "Type-safe P2P communication library for Rust"
+description = "High-level, type-safe P2P communication for fastn"
 homepage.workspace = true
 license.workspace = true
-keywords = ["p2p", "peer-to-peer", "networking", "crypto", "ed25519"]
-categories = ["network-programming", "cryptography"]
 
-[[bin]]
-name = "fastn-p2p-keygen"
-path = "src/main.rs"
 
 [dependencies]
-ed25519-dalek.workspace = true
-data-encoding.workspace = true
+fastn-net = { path = "../fastn-net", version = "0.1.2" }
+fastn-id52 = { path = "../fastn-id52", version = "0.1.1" }
+async-stream.workspace = true
+eyre.workspace = true
+futures-core.workspace = true
+futures-util.workspace = true
+iroh.workspace = true
 serde.workspace = true
-rand.workspace = true
-keyring.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
 
-# Optional DNS lookup support
-tokio = { workspace = true, optional = true, features = ["rt"] }
-hickory-resolver = { version = "0.24", optional = true }
+# Context integration
+fastn-context.workspace = true
 
-[features]
-dns = ["dep:tokio", "dep:hickory-resolver"]
+# Re-export proc macros from separate crate
+fastn-p2p-macros = { path = "../fastn-p2p-macros", version = "0.1.0" }
+
+
+[dev-dependencies]
+tokio-test = "0.4"
+enum-display-derive = "0.1"

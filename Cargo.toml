@@ -1,23 +1,74 @@
 [workspace]
-members = ["fastn-p2p"]
+members = [
+    "fastn-net",
+    "fastn-p2p",
+    "fastn-p2p-test",
+]
+exclude = []
 resolver = "2"
 
 [workspace.package]
-authors = ["Amit Upadhyay <upadhyay@gmail.com>"]
-edition = "2021"
+authors = [
+    "Amit Upadhyay <upadhyay@gmail.com>",
+    "Arpita Jaiswal <arpita@fifthtry.com>",
+    "Siddhant Kumar <siddhant@fifthtry.com>",
+]
+edition = "2024"
+description = "fastn P2P: High-Level Type-Safe P2P Communication"
 license = "UPL-1.0"
 repository = "https://github.com/fastn-stack/p2p"
-homepage = "https://github.com/fastn-stack/p2p"
-rust-version = "1.75"
+homepage = "https://fastn.com"
+rust-version = "1.89"
 
 [workspace.dependencies]
-# Crypto (from fastn-id52)
+# Core dependencies
+arcstr = "1"
+async-lock = "3"
+async-stream = "0.3.6"
+async-trait = "0.1"
+base64 = "0.22"
+bytes = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+colored = "3"
+directories = "6"
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
 data-encoding = "2"
-rand = "0.8.5"
+eyre = "0.6"
+fastn-context = "0.1"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+futures-core = "0.3.31"
+http = "1"
+http-body-util = "0.1"
+hyper = { version = "1.5.1", features = ["server", "http1"] }
+hyper-util = { version = "0.1.10", features = ["tokio"] }
+indexmap = "2"
+indoc = "2"
+iroh = { version = "0.91", features = ["discovery-local-network"] }
 keyring = "3"
+once_cell = "1"
+rand = "0.8.5"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+scc = "2"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs", "sync"] }
+tokio-stream = "0.1"
+tokio-util = "0.7"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+trait-variant = "0.1"
 
-# Optional features  
-tokio = { version = "1", features = ["rt"] }
+# Local workspace dependencies
+fastn-net = { path = "fastn-net" }
+fastn-p2p = { path = "fastn-p2p" }
+
+# Optional automerge support (keeping from original)
+autosurgeon = "0.8"
+automerge = "0.6.1"
 hickory-resolver = "0.24"
+
+[workspace.dependencies.fastn-observer]
+git = "https://github.com/fastn-stack/fastn-observer"
+rev = "5f64c7b"

@@ -1,50 +1,58 @@
-//! # fastn-p2p
+//! # fastn-p2p: High-Level Type-Safe P2P Communication
 //!
-//! Type-safe P2P communication library for Rust.
+//! This crate provides a high-level, type-safe API for P2P communication in the fastn ecosystem.
+//! It builds on top of `fastn-net` but exposes only the essential, locked-down APIs that
+//! reduce the possibility of bugs through strong typing and compile-time verification.
 //!
-//! ## Quick Start
+//! ## Design Philosophy
 //!
-//! ```rust
-//! use fastn_p2p::{SecretKey, PublicKey};
+//! - **Type Safety First**: All communication uses strongly-typed REQUEST/RESPONSE/ERROR contracts
+//! - **Minimal Surface Area**: Only essential APIs are exposed to reduce complexity
+//! - **Bug Prevention**: API design makes common mistakes impossible or unlikely
+//! - **Ergonomic**: High-level APIs handle boilerplate automatically
 //!
-//! // Generate peer identity
-//! let secret_key = SecretKey::generate();
-//! let peer_id = secret_key.public_key().to_string();  // 52-char ID52
+//! ## Usage Patterns
 //!
-//! // Sign and verify messages
-//! let message = b"Hello, P2P!";
-//! let signature = secret_key.sign(message);
-//! assert!(secret_key.public_key().verify(message, &signature).is_ok());
+//! ## API Overview
+//!
+//! ### Client Side
+//! ```rust,ignore
+//! // Type-safe P2P calls with shared error types
+//! type EchoResult = Result<EchoResponse, EchoError>;
+//! let result: EchoResult = fastn_p2p::call(/*...*/).await?;
 //! ```
 //!
-//! ## Documentation
-//!
-//! - [Identity & Keys](https://github.com/fastn-stack/p2p/blob/main/docs/identity.md) - Detailed key management guide
-//! - [Examples](https://github.com/fastn-stack/p2p/tree/main/examples) - Working example applications
-//!
-//! ## CLI Tool
-//!
-//! ```bash
-//! # Install the key generation tool
-//! cargo install fastn-p2p
-//!
-//! # Generate a new peer identity
-//! fastn-p2p-keygen generate
+//! ### Server Side  
+//! ```rust,ignore
+//! // High-level request handling with automatic response management
+//! let stream = fastn_p2p::listen(/*...*/)?;
+//! request.handle(|req: EchoRequest| async move { /*...*/ }).await?;
 //! ```
 
-mod errors;
-mod keyring;
-mod keys;
+extern crate self as fastn_p2p;
 
-pub use errors::{
-    InvalidKeyBytesError, InvalidSignatureBytesError, ParseId52Error, ParseSecretKeyError,
-    SignatureVerificationError,
+mod coordination;
+mod globals;
+mod macros;
+
+// Export client and server modules (new modular API)
+pub mod client;
+pub mod server;
+
+// Re-export essential types from fastn-net that users need
+pub use fastn_net::{Graceful, Protocol};
+// Note: PeerStreamSenders is intentionally NOT exported - users should use global singletons
+
+// Re-export procedural macros
+pub use fastn_p2p_macros::main;
+
+// Global singleton access - graceful is completely encapsulated in coordination module
+pub use coordination::{cancelled, shutdown, spawn};
+pub use globals::{graceful, pool};
+
+// Note: Legacy call() export removed - will be restored in Phase 5 migration
+pub use server::{
+    GetInputError, HandleRequestError, ListenerAlreadyActiveError, ListenerNotFoundError, Request,
+    ResponseHandle, SendError, active_listener_count, active_listeners, is_listening, listen,
+    stop_listening, Session,
 };
-pub use keyring::KeyringError;
-pub use keys::{PublicKey, SecretKey, Signature};
-
-#[cfg(feature = "dns")]
-pub use errors::ResolveError;
-
-#[cfg(feature = "dns")]
-pub mod dns;
