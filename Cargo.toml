@@ -1,8 +1,5 @@
 [workspace]
-members = [
-    "fastn-p2p",
-    "fastn-p2p-macros",
-]
+members = ["fastn-p2p"]
 resolver = "2"
 
 [workspace.package]
@@ -14,42 +11,13 @@ homepage = "https://github.com/fastn-stack/p2p"
 rust-version = "1.75"
 
 [workspace.dependencies]
-# Core async runtime
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs", "sync"] }
-tokio-util = "0.7"
-tokio-stream = "0.1"
-
-# Async utilities
-async-stream = "0.3.6"
-futures-core = "0.3.31"
-futures-util = { version = "0.3", default-features = false, features = ["std"] }
-
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-
-# Error handling
-eyre = "0.6"
-thiserror = "2"
-
-# Networking
-iroh = { version = "0.91", features = ["discovery-local-network"] }
-
-# Crypto
+# Crypto (from fastn-id52)
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
 data-encoding = "2"
 rand = "0.8.5"
-
-# Other utilities
-tracing = "0.1"
 keyring = "3"
+serde = { version = "1", features = ["derive"] }
 
-# External published crates
-fastn-context = "0.1"
-
-# For examples only
-clap = { version = "4", features = ["derive"] }
-colored = "3"
-atty = "0.2"
-chrono = { version = "0.4", features = ["serde"] }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Optional features  
+tokio = { version = "1", features = ["rt"] }
+hickory-resolver = "0.24"

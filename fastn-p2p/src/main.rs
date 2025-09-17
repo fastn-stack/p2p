@@ -216,7 +216,7 @@ fn print_help() {
 
 fn handle_generate(options: GenerateOptions) {
     // Generate new key
-    let secret_key = fastn_id52::SecretKey::generate();
+    let secret_key = fastn_p2p::SecretKey::generate();
     let id52 = secret_key.id52();
 
     // Handle output based on selected method
@@ -254,7 +254,7 @@ fn handle_generate(options: GenerateOptions) {
     }
 }
 
-fn save_to_file(filename: &str, secret_key: &fastn_id52::SecretKey) {
+fn save_to_file(filename: &str, secret_key: &fastn_p2p::SecretKey) {
     use std::io::Write;
 
     if std::path::Path::new(filename).exists() {
@@ -280,7 +280,7 @@ fn save_to_file(filename: &str, secret_key: &fastn_id52::SecretKey) {
     }
 }
 
-fn save_to_keyring(secret_key: &fastn_id52::SecretKey, short_output: bool) {
+fn save_to_keyring(secret_key: &fastn_p2p::SecretKey, short_output: bool) {
     let id52 = secret_key.id52();
 
     match secret_key.store_in_keyring() {
@@ -312,7 +312,7 @@ fn save_to_keyring(secret_key: &fastn_id52::SecretKey, short_output: bool) {
 
 #[cfg(feature = "dns")]
 async fn handle_resolve(options: ResolveOptions) {
-    use fastn_id52::PublicKey;
+    use fastn_p2p::PublicKey;
 
     println!(
         "Resolving public key for scope '{}' on domain '{}'...",
