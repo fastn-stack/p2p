@@ -3,6 +3,10 @@
 //! Client runs local HTTP server, forwards all requests to P2P server.
 //! Server forwards requests to configured upstream HTTP server.
 //!
+//! NOTE: This is a simplified example for demonstration. For production
+//! HTTP proxying, see fastn-net's http_to_peer/peer_to_http which uses
+//! hyper for proper HTTP/1.1 support with connection reuse.
+//!
 //! Usage:
 //!   http_proxy server [key] [upstream_url]     # Start proxy server  
 //!   http_proxy client <id52> [local_port]      # Start local HTTP server
