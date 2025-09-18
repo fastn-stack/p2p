@@ -20,22 +20,21 @@ pub struct ProxyConfig {
 
 #[fastn_context::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = <examples::Args as clap::Parser>::parse();
+    let args = examples::parse_cli()?;
 
     match args.mode {
-        examples::Mode::Server { key, config } => {
+        examples::ParsedMode::Server { private_key, config } => {
             let upstream = config.first().unwrap_or(&"http://httpbin.org".to_string()).clone();
-            run_server(key, upstream).await
+            run_server(private_key, upstream).await
         }
-        examples::Mode::Client { target, config } => {
+        examples::ParsedMode::Client { target, config } => {
             let port: u16 = config.first().unwrap_or(&"8080".to_string()).parse().unwrap_or(8080);
             run_client(target, port).await
         }
     }
 }
 
-async fn run_server(key: Option<String>, upstream_url: String) -> Result<(), Box<dyn std::error::Error>> {
-    let private_key = examples::key_from_str_or_generate(key.as_deref())?;
+async fn run_server(private_key: fastn_id52::SecretKey, upstream_url: String) -> Result<(), Box<dyn std::error::Error>> {
     
     println!("🔀 HTTP proxy server listening on: {}", private_key.id52());
     println!("📡 Forwarding to upstream: {}", upstream_url);
@@ -56,22 +55,21 @@ async fn run_server(key: Option<String>, upstream_url: String) -> Result<(), Box
     Ok(())
 }
 
-async fn run_client(target: String, local_port: u16) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_client(target: fastn_id52::PublicKey, port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let private_key = fastn_id52::SecretKey::generate();
-    let target_key = examples::parse_peer_id(&target)?;
 
-    println!("🌐 Starting local HTTP server on port {}", local_port);
+    println!("🌐 Starting local HTTP server on port {}", port);
     println!("🔗 Forwarding to P2P server: {}", target);
 
     // Connect to P2P proxy server
     let config = ProxyConfig {
         upstream_url: "unused".to_string(), // Server will use its own upstream
-        local_port,
+        local_port: port,
     };
     
     let mut session = fastn_p2p::client::connect(
         private_key,
-        target_key,
+        target,
         HttpProxyProtocol::Forward,
         config,
     ).await?;

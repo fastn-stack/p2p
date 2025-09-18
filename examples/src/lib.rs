@@ -45,3 +45,38 @@ pub enum Mode {
         config: Vec<String>,
     },
 }
+
+/// Parsed arguments with private key already generated
+pub struct ParsedArgs {
+    pub mode: ParsedMode,
+}
+
+/// Mode with private key already generated for server
+pub enum ParsedMode {
+    Server {
+        private_key: fastn_id52::SecretKey,
+        config: Vec<String>,
+    },
+    Client {
+        target: fastn_id52::PublicKey,
+        config: Vec<String>,
+    },
+}
+
+/// Parse CLI arguments and handle key generation/parsing automatically
+pub fn parse_cli() -> Result<ParsedArgs, Box<dyn std::error::Error>> {
+    let args = <Args as clap::Parser>::parse();
+    
+    let mode = match args.mode {
+        Mode::Server { key, config } => {
+            let private_key = key_from_str_or_generate(key.as_deref())?;
+            ParsedMode::Server { private_key, config }
+        }
+        Mode::Client { target, config } => {
+            let target_key = parse_peer_id(&target)?;
+            ParsedMode::Client { target: target_key, config }
+        }
+    };
+    
+    Ok(ParsedArgs { mode })
+}

@@ -43,8 +43,7 @@ pub mod server;
 pub use fastn_net::{Graceful, Protocol};
 // Note: PeerStreamSenders is intentionally NOT exported - users should use global singletons
 
-// Re-export procedural macros
-pub use fastn_p2p_macros::main;
+// Note: fastn-p2p-macros removed - fastn-context handles main macro
 
 // Global singleton access - graceful is completely encapsulated in coordination module
 pub use coordination::{cancelled, shutdown, spawn};

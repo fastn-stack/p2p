@@ -13,19 +13,18 @@ pub enum FileProtocol { Download }
 
 #[fastn_context::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = <examples::Args as clap::Parser>::parse();
+    let args = examples::parse_cli()?;
 
     match args.mode {
-        examples::Mode::Server { key, config: _ } => run_server(key).await,
-        examples::Mode::Client { target, config } => {
+        examples::ParsedMode::Server { private_key, config: _ } => run_server(private_key).await,
+        examples::ParsedMode::Client { target, config } => {
             let filename = config.first().ok_or("Filename required")?.clone();
             run_client(target, filename).await
         }
     }
 }
 
-async fn run_server(key: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
-    let private_key = examples::key_from_str_or_generate(key.as_deref())?;
+async fn run_server(private_key: fastn_id52::SecretKey) -> Result<(), Box<dyn std::error::Error>> {
     
     println!("📁 File server listening on: {}", private_key.id52());
     println!("⚠️  Security: Only files in current directory are served!");
@@ -37,16 +36,15 @@ async fn run_server(key: Option<String>) -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
-async fn run_client(target: String, filename: String) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_client(target: fastn_id52::PublicKey, filename: String) -> Result<(), Box<dyn std::error::Error>> {
     let private_key = fastn_id52::SecretKey::generate();
-    let target_key = examples::parse_peer_id(&target)?;
 
     println!("📥 Requesting file '{}' from {}", filename, target);
 
     // Connect with protocol + filename data - no manual stream writing needed!
     let mut session = fastn_p2p::client::connect(
         private_key,
-        target_key,
+        target,
         FileProtocol::Download,
         filename.clone(), // <- Data sent automatically during connection
     ).await?;
