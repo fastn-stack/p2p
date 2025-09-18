@@ -63,58 +63,48 @@ async fn run_server(
                     session.peer().id52()
                 );
                 
-                // Construct upstream URL
-                let full_url = format!("{upstream}{}", http_request.path);
-                println!("📡 Forwarding to: {full_url}");
+                // Connect to upstream server
+                let upstream_host = upstream.trim_start_matches("http://").trim_start_matches("https://");
+                let upstream_port = if upstream.starts_with("https://") { 443 } else { 80 };
+                let upstream_addr = format!("{}:{}", upstream_host, upstream_port);
                 
-                // Create HTTP client and forward request
-                let client = reqwest::Client::new();
-                let mut request_builder = match http_request.method.as_str() {
-                    "GET" => client.get(&full_url),
-                    "POST" => client.post(&full_url),
-                    "PUT" => client.put(&full_url),
-                    "DELETE" => client.delete(&full_url),
-                    _ => {
-                        println!("⚠️ Unsupported HTTP method: {}", http_request.method);
-                        return Ok(());
-                    }
-                };
+                println!("📡 Connecting to upstream: {upstream_addr}");
                 
-                // Add headers from original request
-                for (key, value) in http_request.headers {
-                    request_builder = request_builder.header(&key, &value);
-                }
-                
-                // Send request to upstream
-                match request_builder.send().await {
-                    Ok(response) => {
-                        let status = response.status();
-                        let headers = response.headers().clone();
-                        let body = response.bytes().await.map_err(|e| ProxyError::Http(e.to_string()))?;
+                match tokio::net::TcpStream::connect(&upstream_addr).await {
+                    Ok(upstream_stream) => {
+                        println!("✅ Connected to upstream server");
                         
-                        // Build HTTP response
-                        let mut response_lines = vec![
-                            format!("HTTP/1.1 {} {}", status.as_u16(), status.canonical_reason().unwrap_or("OK"))
+                        // Reconstruct HTTP request for upstream
+                        let mut request_lines = vec![
+                            format!("{} {} {}", http_request.method, http_request.path, http_request.version)
                         ];
                         
-                        // Add response headers
-                        for (name, value) in headers.iter() {
-                            response_lines.push(format!("{}: {}", name, value.to_str().unwrap_or("")));
+                        // Add headers
+                        for (key, value) in http_request.headers {
+                            request_lines.push(format!("{}: {}", key, value));
                         }
+                        request_lines.push(String::new()); // Empty line before body
                         
-                        response_lines.push(String::new()); // Empty line before body
-                        let response_header = response_lines.join("\r\n");
+                        let request_header = request_lines.join("\r\n");
                         
-                        // Send response over P2P
-                        tokio::io::AsyncWriteExt::write_all(&mut session.send, response_header.as_bytes()).await
+                        // Send HTTP request header to upstream
+                        let (mut upstream_read, mut upstream_write) = upstream_stream.into_split();
+                        tokio::io::AsyncWriteExt::write_all(&mut upstream_write, request_header.as_bytes()).await
                             .map_err(ProxyError::Io)?;
-                        tokio::io::AsyncWriteExt::write_all(&mut session.send, &body).await
-                            .map_err(ProxyError::Io)?;
                         
-                        println!("✅ Forwarded response: {} ({} bytes)", status, body.len());
+                        // Now use copy_both for efficient bidirectional body streaming!
+                        match session.copy_both(upstream_read, upstream_write).await {
+                            Ok((from_upstream, to_upstream)) => {
+                                println!("✅ HTTP proxy completed: {to_upstream} sent to upstream, {from_upstream} received");
+                            }
+                            Err(e) => {
+                                println!("❌ Proxy stream error: {e}");
+                                return Err(ProxyError::Io(e));
+                            }
+                        }
                     }
                     Err(e) => {
-                        println!("❌ Upstream error: {e}");
+                        println!("❌ Failed to connect to upstream: {e}");
                         let error_response = "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 19\r\n\r\nUpstream Unavailable";
                         tokio::io::AsyncWriteExt::write_all(&mut session.send, error_response.as_bytes()).await
                             .map_err(ProxyError::Io)?;
@@ -197,7 +187,7 @@ async fn run_client(
                 
                 println!("📤 Forwarding {method} {path} via P2P");
                 
-                // Connect with HTTP request as data
+                // Connect with HTTP request headers as data
                 let mut session = fastn_p2p::client::connect(
                     private_key.clone(),
                     target,
@@ -205,9 +195,16 @@ async fn run_client(
                     http_request,
                 ).await?;
                 
-                // Stream response back to HTTP client
-                session.copy_to(&mut tcp_stream).await?;
-                println!("✅ HTTP response returned to client");
+                // Use copy_both for bidirectional HTTP body streaming!
+                let (tcp_read, tcp_write) = tcp_stream.into_split();
+                match session.copy_both(tcp_read, tcp_write).await {
+                    Ok((to_p2p, from_p2p)) => {
+                        println!("✅ HTTP proxy completed: {to_p2p} sent via P2P, {from_p2p} received");
+                    }
+                    Err(e) => {
+                        println!("❌ Client proxy error: {e}");
+                    }
+                }
             }
             Err(e) => {
                 println!("❌ Failed to accept connection: {e}");
