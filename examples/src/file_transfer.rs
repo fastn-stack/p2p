@@ -90,8 +90,9 @@ async fn file_stream_handler(mut session: fastn_p2p::Session<FileProtocol>, file
         
     println!("📤 Streaming file: {filename}");
     
-    // Clean copy method with specific error type
-    let bytes_sent = session.copy_from(&mut file).await?;
+    // Clean copy method - returns io::Result, convert if needed
+    let bytes_sent = session.copy_from(&mut file).await
+        .map_err(FileError::Io)?;
     println!("✅ Sent {filename} ({bytes_sent} bytes)");
     
     Ok(())
