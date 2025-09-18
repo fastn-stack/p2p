@@ -1,12 +1,16 @@
 # malai-next: Production-Grade HTTP over P2P
 
-Next-generation malai implementation using the new fastn-p2p API. This is a fresh implementation that fixes bugs and performance issues in the legacy malai HTTP proxy functionality.
+Fresh implementation of malai's HTTP proxy functionality (expose_http/http_bridge) using the new fastn-p2p API. 
+
+**Scope**: Only HTTP over P2P features - not the full malai feature set.
 
 ## Overview
 
-malai-next provides production-grade HTTP over P2P with:
-- **expose_http**: P2P server that exposes local HTTP services
+malai-next implements production-grade HTTP over P2P:
+- **expose_http**: P2P server that exposes local HTTP services  
 - **http_bridge**: P2P client that creates local HTTP→P2P bridges
+
+**Goal**: Feature parity with malai's expose_http/http_bridge commands using superior fastn-p2p API.
 
 ## Essential Features Analysis
 
@@ -18,29 +22,16 @@ Based on analysis of the current malai implementation, the following production 
 3. **Efficient Streaming** - session.copy_both() for zero-copy bidirectional I/O
 4. **Clean API** - Uses new fastn_p2p::listen().handle_streams() pattern
 
-### 🚧 Missing Critical Features (TODO)
+### 🚧 Missing HTTP-Specific Features (TODO)
 
-#### Core Infrastructure (20 source files in malai!)
+**Scope**: Only features related to HTTP over P2P (expose_http/http_bridge)
+
+#### Critical for HTTP Production Use:
 1. **HTTP Connection Pooling** - bb8::Pool for connection reuse (performance critical)
-2. **Keyring Integration** - System keyring for secure key storage (`use_keyring = true`)
-3. **TCP Proxy Support** - `expose_tcp.rs`, `tcp_bridge.rs` for TCP forwarding
-4. **Daemon Architecture** - Background daemon with Unix socket IPC (`daemon.rs`, `daemon_socket.rs`)
-5. **Configuration Management** - TOML config files for services, permissions, clusters
-6. **Permission Control** - Access control system for who can proxy what services
-7. **Multiple Service Types** - HTTP, TCP, and other protocol support
-8. **Service Discovery** - Automatic discovery of available services
-9. **Health Checks** - Monitor upstream service availability
-10. **Cluster Management** - Multi-machine coordination and config sync
-11. **DNS Integration** - Domain-based addressing like original malai
-12. **Identity Management** - Complex identity resolution and validation
-13. **Agent Architecture** - Client agent for connection pooling (`core/agent.rs`)
-14. **Remote Access Framework** - Complete SSH-like remote access system
-15. **Status/Info Commands** - Real-time status and service information
-16. **Browse Integration** - Web interface integration (`browse.rs`)
-17. **Folder Operations** - File/folder management over P2P (`folder/mod.rs`)
-18. **CLI Integration** - Rich CLI with daemon communication
-19. **Machine Initialization** - Automated machine setup and identity generation
-20. **Metrics/Logging** - Comprehensive observability and monitoring
+2. **Keyring Integration** - System keyring for secure key storage (`use_keyring = true`) 
+3. **Persistent Key Management** - File-based fallback when keyring unavailable
+4. **Basic Configuration** - TOML config for host/port/permissions
+5. **Access Control** - Permission system for HTTP service access
 
 ### 🔧 HTTP Connection Pooling (Priority #1)
 
@@ -160,27 +151,28 @@ let mut client = pool.get().await?;
 
 **This means malai-next gets graceful shutdown for free** - one less thing to implement!
 
-**REALITY CHECK: malai-next is a MINIMAL PROOF OF CONCEPT**
+**HTTP Feature Gap Analysis:**
 
-Current malai has **20 source files** with sophisticated production features:
-- HTTP + TCP proxy systems
-- Daemon architecture with Unix socket IPC  
-- Keyring integration for secure key storage
-- Complex configuration and permission systems
-- Cluster management and service discovery
-- Agent architecture and connection pooling
+Current malai HTTP functionality is production-grade with:
+- Sophisticated bb8 connection pooling
+- Keyring integration with file fallback
+- Proper HTTP/1.1 streaming with hyper
+- Connection lifecycle management
 
-**malai-next has 4 files with basic HTTP forwarding only.**
+**malai-next HTTP functionality is demo-grade:**
+- ✅ Basic HTTP forwarding works
+- ✅ Uses superior fastn-p2p API  
+- ✅ Efficient session.copy_both() streaming
+- ❌ No connection pooling (performance issue)
+- ❌ No keyring (generates keys each run)
+- ❌ No configuration (hardcoded values)
 
-**Before considering production use, malai-next needs SIGNIFICANT development:**
-1. **HTTP connection pooling** (critical performance)
-2. **Keyring integration** (secure key storage)
-3. **TCP proxy support** (feature parity) 
-4. **Daemon + Unix socket** (proper architecture)
-5. **Configuration system** (TOML configs)
-6. **Access control** (security)
-7. **Service management** (multiple services)
-8. **And 8+ more advanced features for full parity**
+**For HTTP production parity, malai-next needs:**
+1. **bb8 HTTP connection pooling** (critical)
+2. **Keyring + file key storage** (essential)
+3. **Basic TOML configuration** (flexibility)
+4. **Access control** (security)
+5. **Better error handling** (reliability)
 
 ## Architecture
 
