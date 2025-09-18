@@ -19,16 +19,28 @@ Based on analysis of the current malai implementation, the following production 
 4. **Clean API** - Uses new fastn_p2p::listen().handle_streams() pattern
 
 ### 🚧 Missing Critical Features (TODO)
+
+#### Core Infrastructure (20 source files in malai!)
 1. **HTTP Connection Pooling** - bb8::Pool for connection reuse (performance critical)
-2. **Graceful Shutdown** - Proper signal handling and cleanup
-3. **Key Management** - Persistent key storage/retrieval (not generate each time)
-4. **Configuration Management** - Config files for services, permissions, etc.
-5. **Permission Control** - Access control for who can proxy what services
-6. **Service Discovery** - Automatic discovery of available services
-7. **Health Checks** - Monitor upstream service availability
-8. **Metrics/Logging** - Proper observability for production use
-9. **Multiple Services** - Single server exposing multiple HTTP services
-10. **DNS Integration** - Domain-based addressing like original malai
+2. **Keyring Integration** - System keyring for secure key storage (`use_keyring = true`)
+3. **TCP Proxy Support** - `expose_tcp.rs`, `tcp_bridge.rs` for TCP forwarding
+4. **Daemon Architecture** - Background daemon with Unix socket IPC (`daemon.rs`, `daemon_socket.rs`)
+5. **Configuration Management** - TOML config files for services, permissions, clusters
+6. **Permission Control** - Access control system for who can proxy what services
+7. **Multiple Service Types** - HTTP, TCP, and other protocol support
+8. **Service Discovery** - Automatic discovery of available services
+9. **Health Checks** - Monitor upstream service availability
+10. **Cluster Management** - Multi-machine coordination and config sync
+11. **DNS Integration** - Domain-based addressing like original malai
+12. **Identity Management** - Complex identity resolution and validation
+13. **Agent Architecture** - Client agent for connection pooling (`core/agent.rs`)
+14. **Remote Access Framework** - Complete SSH-like remote access system
+15. **Status/Info Commands** - Real-time status and service information
+16. **Browse Integration** - Web interface integration (`browse.rs`)
+17. **Folder Operations** - File/folder management over P2P (`folder/mod.rs`)
+18. **CLI Integration** - Rich CLI with daemon communication
+19. **Machine Initialization** - Automated machine setup and identity generation
+20. **Metrics/Logging** - Comprehensive observability and monitoring
 
 ### 🔧 HTTP Connection Pooling (Priority #1)
 
@@ -84,13 +96,24 @@ let mut client = pool.get().await?;
 
 #### Critical Missing Features in malai-next:
 
-1. **❌ No connection pooling** - Creates new TCP connection per request
-2. **❌ No graceful shutdown** - Basic tokio::select only
-3. **❌ No configuration** - Hardcoded host/port, no permissions
-4. **❌ No persistent keys** - Generates new key each run
-5. **❌ No service management** - Single service only
-6. **❌ No access control** - Anyone can connect
-7. **❌ No proper error context** - Basic error types only
+**Core Missing (must implement for MVP):**
+1. **❌ No HTTP connection pooling** - Creates new TCP connection per request
+2. **❌ No keyring integration** - Should use system keyring like malai
+3. **❌ No TCP proxy support** - Only HTTP, missing TCP forwarding
+4. **❌ No daemon architecture** - No background daemon + Unix socket IPC
+5. **❌ No configuration system** - Hardcoded host/port, no TOML config
+6. **❌ No persistent keys** - Generates new key each run (not production-ready)
+7. **❌ No access control** - Anyone can connect (security hole)
+8. **❌ No service management** - Single service only
+
+**Advanced Missing (for feature parity):**
+9. **❌ No agent architecture** - No client-side connection pooling
+10. **❌ No cluster management** - No multi-machine coordination
+11. **❌ No identity management** - No complex identity resolution
+12. **❌ No status/monitoring** - No operational visibility commands
+13. **❌ No browse integration** - No web interface connectivity
+14. **❌ No folder operations** - No file management over P2P
+15. **❌ No CLI integration** - No rich CLI with daemon communication
 
 ### 📋 Implementation Roadmap
 
@@ -137,11 +160,27 @@ let mut client = pool.get().await?;
 
 **This means malai-next gets graceful shutdown for free** - one less thing to implement!
 
-**Remaining critical gaps before production readiness:**
-1. **HTTP connection pooling** (performance)
-2. **Persistent key management** (functionality)  
-3. **Configuration system** (flexibility)
-4. **Access control** (security)
+**REALITY CHECK: malai-next is a MINIMAL PROOF OF CONCEPT**
+
+Current malai has **20 source files** with sophisticated production features:
+- HTTP + TCP proxy systems
+- Daemon architecture with Unix socket IPC  
+- Keyring integration for secure key storage
+- Complex configuration and permission systems
+- Cluster management and service discovery
+- Agent architecture and connection pooling
+
+**malai-next has 4 files with basic HTTP forwarding only.**
+
+**Before considering production use, malai-next needs SIGNIFICANT development:**
+1. **HTTP connection pooling** (critical performance)
+2. **Keyring integration** (secure key storage)
+3. **TCP proxy support** (feature parity) 
+4. **Daemon + Unix socket** (proper architecture)
+5. **Configuration system** (TOML configs)
+6. **Access control** (security)
+7. **Service management** (multiple services)
+8. **And 8+ more advanced features for full parity**
 
 ## Architecture
 
