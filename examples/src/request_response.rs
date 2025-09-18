@@ -24,21 +24,16 @@ pub enum EchoError { InvalidMessage(String) }
 
 type EchoResult = Result<EchoResponse, EchoError>;
 
-// Client config
-#[derive(clap::Args)]
-struct ClientConfig {
-    /// Message to send
-    #[arg(default_value = "Hello P2P!")]
-    message: String,
-}
-
 #[fastn_context::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = <examples::Args<ClientConfig> as clap::Parser>::parse();
+    let args = <examples::Args as clap::Parser>::parse();
 
     match args.mode {
         examples::Mode::Server { key, config: _ } => run_server(key).await,
-        examples::Mode::Client { target, config } => run_client(target, config.message).await,
+        examples::Mode::Client { target, config } => {
+            let message = config.first().unwrap_or(&"Hello P2P!".to_string()).clone();
+            run_client(target, message).await
+        }
     }
 }
 

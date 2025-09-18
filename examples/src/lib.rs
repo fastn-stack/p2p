@@ -17,37 +17,31 @@ pub fn parse_peer_id(id52_str: &str) -> Result<fastn_id52::PublicKey, Box<dyn st
 #[derive(clap::Args)]
 pub struct NoArgs {}
 
-/// Generic CLI arguments for P2P examples
+/// Simple CLI arguments for P2P examples
 #[derive(clap::Parser)]
-pub struct Args<CLIENT = NoArgs, SERVER = NoArgs> 
-where
-    CLIENT: clap::Args,
-    SERVER: clap::Args,
-{
+pub struct Args {
     #[command(subcommand)]
-    pub mode: Mode<CLIENT, SERVER>,
+    pub mode: Mode,
 }
 
-/// Generic mode enum for client/server patterns
+/// Simple mode enum for client/server patterns
 #[derive(clap::Subcommand)]
-pub enum Mode<CLIENT = NoArgs, SERVER = NoArgs> 
-where
-    CLIENT: clap::Args,
-    SERVER: clap::Args,
-{
+pub enum Mode {
     /// Start server mode
     Server {
         /// Optional private key
         #[arg(long)]
         key: Option<String>,
-        #[command(flatten)]
-        config: SERVER,
+        /// Additional server arguments
+        #[arg(trailing_var_arg = true)]
+        config: Vec<String>,
     },
     /// Start client mode  
     Client {
         /// Target server ID52
         target: String,
-        #[command(flatten)]
-        config: CLIENT,
+        /// Additional client arguments
+        #[arg(trailing_var_arg = true)]
+        config: Vec<String>,
     },
 }
