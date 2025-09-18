@@ -1,11 +1,11 @@
 //! TCP Proxy Example
-//! 
+//!
 //! TCP tunneling over P2P - forward TCP connections through P2P network.
 //! Like SSH tunneling but using P2P instead of SSH.
-//! 
+//!
 //! This shows how to proxy existing TCP services over P2P.
-//! 
-//! Usage: 
+//!
+//! Usage:
 //!   tcp_proxy server [key]                           # Start proxy server
 //!   tcp_proxy client <id52> <local_port> <target>    # Start proxy client
 

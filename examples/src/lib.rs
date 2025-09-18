@@ -1,7 +1,9 @@
 //! Shared utilities for P2P examples
 
 /// Parse a key from string or generate a new one
-pub fn key_from_str_or_generate(key_str: Option<&str>) -> Result<fastn_p2p::SecretKey, Box<dyn std::error::Error>> {
+pub fn key_from_str_or_generate(
+    key_str: Option<&str>,
+) -> Result<fastn_p2p::SecretKey, Box<dyn std::error::Error>> {
     match key_str {
         Some(s) => Ok(s.parse()?),
         None => Ok(fastn_p2p::SecretKey::generate()),
@@ -61,19 +63,25 @@ pub enum ParsedMode {
 /// Parse CLI arguments and handle key generation/parsing automatically
 pub fn parse_cli() -> Result<ParsedMode, Box<dyn std::error::Error>> {
     let args = <Args as clap::Parser>::parse();
-    
+
     match args.mode {
         Mode::Server { key, config } => {
             let private_key = key_from_str_or_generate(key.as_deref())?;
-            Ok(ParsedMode::Server { private_key, config })
+            Ok(ParsedMode::Server {
+                private_key,
+                config,
+            })
         }
         Mode::Client { target, config } => {
             let target_key = parse_peer_id(&target)?;
-            Ok(ParsedMode::Client { target: target_key, config })
+            Ok(ParsedMode::Client {
+                target: target_key,
+                config,
+            })
         }
     }
 }
 
 // Clean re-exports for examples
-pub use ParsedMode::Server;
 pub use ParsedMode::Client;
+pub use ParsedMode::Server;

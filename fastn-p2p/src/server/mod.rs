@@ -9,8 +9,8 @@ pub mod management;
 pub mod request;
 pub mod session;
 
-// Public API exports - no use statements, direct qualification  
-pub use builder::{listen as builder_listen, ServerBuilder};
+// Public API exports - no use statements, direct qualification
+pub use builder::{ServerBuilder, listen as builder_listen};
 pub use handle::{ResponseHandle, SendError};
 pub use listener::listen;
 pub use management::{

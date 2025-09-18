@@ -75,7 +75,7 @@ impl fmt::Debug for SecretKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SecretKey")
             .field("public_id52", &self.id52())
-            .finish_non_exhaustive()  // Shows ".. " to indicate hidden fields
+            .finish_non_exhaustive() // Shows ".. " to indicate hidden fields
     }
 }
 
@@ -265,7 +265,7 @@ impl SecretKey {
     }
 
     /// Returns the raw 32-byte representation of the secret key.
-    /// 
+    ///
     /// ⚠️  SECURITY WARNING: This exposes the actual secret key material!
     /// Only use this for cryptographic operations or secure storage.
     /// For display/logging, use .id52() to show the public identifier.
@@ -274,7 +274,7 @@ impl SecretKey {
     }
 
     /// Returns the secret key as hex string.
-    /// 
+    ///
     /// ⚠️  SECURITY WARNING: This exposes the actual secret key material!
     /// Only use this for serialization or secure storage.
     /// For display/logging, use .id52() to show the public identifier.
@@ -283,7 +283,10 @@ impl SecretKey {
     }
 
     /// DEPRECATED: Use to_secret_bytes() to make the security implications clear
-    #[deprecated(since = "0.1.3", note = "Use to_secret_bytes() to make security implications clear")]
+    #[deprecated(
+        since = "0.1.3",
+        note = "Use to_secret_bytes() to make security implications clear"
+    )]
     pub fn to_bytes(&self) -> [u8; 32] {
         self.to_secret_bytes()
     }

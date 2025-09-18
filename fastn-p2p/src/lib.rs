@@ -59,6 +59,6 @@ pub use server::builder_listen as listen;
 // Legacy API exports (TODO: phase out in favor of builder API)
 pub use server::{
     GetInputError, HandleRequestError, ListenerAlreadyActiveError, ListenerNotFoundError, Request,
-    ResponseHandle, SendError, active_listener_count, active_listeners, is_listening, 
-    listen as legacy_listen, stop_listening, Session,
+    ResponseHandle, SendError, Session, active_listener_count, active_listeners, is_listening,
+    listen as legacy_listen, stop_listening,
 };
