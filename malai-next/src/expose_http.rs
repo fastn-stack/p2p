@@ -62,9 +62,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn http_proxy_handler(
     mut session: fastn_p2p::Session<HttpProtocol>,
     http_request: HttpRequest,
-    state: (String, u16),
+    (host, port): (String, u16),
 ) -> Result<(), HttpError> {
-    let (host, port) = state;
     
     tracing::info!(
         "📡 HTTP request: {} {} from {}",

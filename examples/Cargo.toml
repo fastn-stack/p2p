@@ -35,8 +35,8 @@ name = "tcp_proxy"
 path = "src/tcp_proxy.rs"
 
 [[bin]]
-name = "http_proxy"
-path = "src/http_proxy.rs"
+name = "http_proxy_simple"
+path = "src/http_proxy_simple.rs"
 
 [[bin]]
 name = "media_stream"
