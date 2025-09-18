@@ -40,3 +40,7 @@ path = "src/http_proxy.rs"
 name = "media_stream"
 path = "src/media_stream.rs"
 
+[[bin]]
+name = "multi_protocol"
+path = "src/multi_protocol.rs"
+
