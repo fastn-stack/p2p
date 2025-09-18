@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = <examples::Args<ClientConfig> as clap::Parser>::parse();
 
     match args.mode {
-        examples::Mode::Server { key, config } => run_server(key).await,
+        examples::Mode::Server { key, config: _ } => run_server(key).await,
         examples::Mode::Client { target, config } => run_client(target, config.message).await,
     }
 }

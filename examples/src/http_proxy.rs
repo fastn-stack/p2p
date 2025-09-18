@@ -18,19 +18,29 @@ pub struct ProxyConfig {
     pub local_port: u16,       // Where client listens
 }
 
+// Client config
+#[derive(clap::Args)]
+struct ClientConfig {
+    /// Local port to listen on
+    #[arg(default_value = "8080")]
+    port: u16,
+}
+
+// Server config
+#[derive(clap::Args)]
+struct ServerConfig {
+    /// Upstream HTTP server URL
+    #[arg(default_value = "http://httpbin.org")]
+    upstream: String,
+}
+
 #[fastn_context::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = <examples::Args as clap::Parser>::parse();
+    let args = <examples::Args<ClientConfig, ServerConfig> as clap::Parser>::parse();
 
     match args.mode {
-        examples::Mode::Server { key } => {
-            let upstream = std::env::args().nth(3).unwrap_or_else(|| "http://httpbin.org".to_string());
-            run_server(key, upstream).await
-        }
-        examples::Mode::Client { target, args } => {
-            let port: u16 = args.first().unwrap_or(&"8080".to_string()).parse().unwrap_or(8080);
-            run_client(target, port).await
-        }
+        examples::Mode::Server { key, config } => run_server(key, config.upstream).await,
+        examples::Mode::Client { target, config } => run_client(target, config.port).await,
     }
 }
 
