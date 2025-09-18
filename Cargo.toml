@@ -4,6 +4,7 @@ members = [
     "fastn-net",
     "fastn-p2p",
     "examples",
+    "malai-next",
 ]
 exclude = []
 resolver = "2"
