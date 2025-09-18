@@ -23,11 +23,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = examples::parse_cli()?;
 
     match args.mode {
-        examples::ParsedMode::Server { private_key, config } => {
+        examples::Server { private_key, config } => {
             let upstream = config.first().unwrap_or(&"http://httpbin.org".to_string()).clone();
             run_server(private_key, upstream).await
         }
-        examples::ParsedMode::Client { target, config } => {
+        examples::Client { target, config } => {
             let port: u16 = config.first().unwrap_or(&"8080".to_string()).parse().unwrap_or(8080);
             run_client(target, port).await
         }

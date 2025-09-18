@@ -80,3 +80,7 @@ pub fn parse_cli() -> Result<ParsedArgs, Box<dyn std::error::Error>> {
     
     Ok(ParsedArgs { mode })
 }
+
+// Clean re-exports for examples
+pub use ParsedMode::Server;
+pub use ParsedMode::Client;

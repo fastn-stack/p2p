@@ -16,8 +16,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = examples::parse_cli()?;
 
     match args.mode {
-        examples::ParsedMode::Server { private_key, config: _ } => run_server(private_key).await,
-        examples::ParsedMode::Client { target, config } => {
+        examples::Server { private_key, config: _ } => run_server(private_key).await,
+        examples::Client { target, config } => {
             let filename = config.first().ok_or("Filename required")?.clone();
             run_client(target, filename).await
         }
