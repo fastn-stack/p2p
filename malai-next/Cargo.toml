@@ -19,6 +19,8 @@ serde.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
 colored.workspace = true
+bb8.workspace = true
+http-body-util.workspace = true
 
 [[bin]]
 name = "expose_http"
