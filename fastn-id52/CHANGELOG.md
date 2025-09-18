@@ -10,12 +10,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### 🔒 Security
 
-- **CRITICAL: Fixed SecretKey Display implementation to prevent secret leakage**
-  - `fmt::Display` now shows public ID52 instead of secret key bytes
-  - Prevents accidental secret key exposure in logs/debugging
+- **CRITICAL: Removed SecretKey Display implementation to prevent secret leakage**
+  - `fmt::Display` trait completely removed from SecretKey
+  - Prevents ANY accidental secret key exposure in println!/format! calls
   - Added explicit `to_secret_bytes()` and `to_secret_hex()` for intentional secret access
   - Deprecated `to_bytes()` method with clear security warning
-  - **BREAKING CHANGE**: Display output changed from secret hex to public ID52
+  - **BREAKING CHANGE**: println!("{}", secret_key) no longer compiles - use .id52() or .to_secret_hex()
 
 ### Added
 

@@ -421,7 +421,7 @@ impl SecretKey {
         })?;
 
         // Write secret key to file
-        let key_string = self.to_string();
+        let key_string = self.to_secret_hex();
         std::fs::write(&private_key_file, &key_string).map_err(|e| {
             crate::KeyringError::Access(format!("Failed to write {prefix}.private-key file: {e}"))
         })?;
@@ -523,12 +523,8 @@ impl SecretKey {
     }
 }
 
-// Display implementation - always uses hex encoding
-impl fmt::Display for SecretKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.id52())  // Show public ID only - NEVER the secret
-    }
-}
+// Note: Display implementation intentionally removed for security.
+// Use .id52() for public identifier or .to_secret_hex() for explicit secret access.
 
 // FromStr implementation - accepts both hex and base32
 impl FromStr for SecretKey {
@@ -566,7 +562,7 @@ impl Serialize for SecretKey {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&format!("{self}"))
+        serializer.serialize_str(&self.to_secret_hex())
     }
 }
 
@@ -690,10 +686,10 @@ mod tests {
     #[test]
     fn test_secret_key_hex_roundtrip() {
         let secret_key = SecretKey::generate();
-        let hex = secret_key.to_string();
+        let hex = secret_key.to_secret_hex();
 
         let parsed = SecretKey::from_str(&hex).unwrap();
-        assert_eq!(parsed.to_bytes(), secret_key.to_bytes());
+        assert_eq!(parsed.to_secret_bytes(), secret_key.to_secret_bytes());
     }
 
     #[test]

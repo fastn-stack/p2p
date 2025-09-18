@@ -223,7 +223,7 @@ fn handle_generate(options: GenerateOptions) {
     match options.storage {
         StorageMethod::Stdout => {
             // Output secret to stdout
-            println!("{secret_key}");
+            println!("{}", secret_key.to_secret_hex());
             if options.short_output {
                 eprintln!("{id52}");
             } else {
@@ -270,8 +270,8 @@ fn save_to_file(filename: &str, secret_key: &fastn_id52::SecretKey) {
         }
     };
 
-    // Use Display implementation which outputs hex
-    match writeln!(file, "{secret_key}") {
+    // Write secret key hex to file
+    match writeln!(file, "{}", secret_key.to_secret_hex()) {
         Ok(_) => {}
         Err(e) => {
             eprintln!("Failed to write secret key to file `{filename}`: {e}");
