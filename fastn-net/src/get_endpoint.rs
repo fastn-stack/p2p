@@ -11,7 +11,7 @@
 /// Returns an error if the endpoint fails to bind to the network.
 pub async fn get_endpoint(secret_key: fastn_id52::SecretKey) -> eyre::Result<iroh::Endpoint> {
     // Convert fastn_id52::SecretKey to iroh::SecretKey
-    let iroh_secret_key = iroh::SecretKey::from_bytes(&secret_key.to_bytes());
+    let iroh_secret_key = iroh::SecretKey::from_bytes(&secret_key.to_secret_bytes());
 
     match iroh::Endpoint::builder()
         .discovery_n0()

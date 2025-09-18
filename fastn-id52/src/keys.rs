@@ -63,7 +63,7 @@ pub struct SecretKey(InnerSecretKey);
 impl Clone for SecretKey {
     fn clone(&self) -> Self {
         // Clone by reconstructing from bytes
-        SecretKey::from_bytes(&self.to_bytes())
+        SecretKey::from_bytes(&self.to_secret_bytes())
     }
 }
 
@@ -264,8 +264,27 @@ impl SecretKey {
     }
 
     /// Returns the raw 32-byte representation of the secret key.
-    pub fn to_bytes(&self) -> [u8; 32] {
+    /// 
+    /// ⚠️  SECURITY WARNING: This exposes the actual secret key material!
+    /// Only use this for cryptographic operations or secure storage.
+    /// For display/logging, use .id52() to show the public identifier.
+    pub fn to_secret_bytes(&self) -> [u8; 32] {
         self.0.to_bytes()
+    }
+
+    /// Returns the secret key as hex string.
+    /// 
+    /// ⚠️  SECURITY WARNING: This exposes the actual secret key material!
+    /// Only use this for serialization or secure storage.
+    /// For display/logging, use .id52() to show the public identifier.
+    pub fn to_secret_hex(&self) -> String {
+        data_encoding::HEXLOWER.encode(&self.to_secret_bytes())
+    }
+
+    /// DEPRECATED: Use to_secret_bytes() to make the security implications clear
+    #[deprecated(since = "0.1.3", note = "Use to_secret_bytes() to make security implications clear")]
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.to_secret_bytes()
     }
 
     /// Derives the public key from this secret key.
@@ -507,7 +526,7 @@ impl SecretKey {
 // Display implementation - always uses hex encoding
 impl fmt::Display for SecretKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", data_encoding::HEXLOWER.encode(&self.to_bytes()))
+        write!(f, "{}", self.id52())  // Show public ID only - NEVER the secret
     }
 }
 

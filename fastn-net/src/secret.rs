@@ -31,7 +31,7 @@ pub fn generate_secret_key() -> eyre::Result<(String, fastn_id52::SecretKey)> {
 pub async fn generate_and_save_key() -> eyre::Result<(String, fastn_id52::SecretKey)> {
     let (id52, secret_key) = generate_secret_key()?;
     let e = keyring_entry(&id52)?;
-    e.set_secret(&secret_key.to_bytes())
+    e.set_secret(&secret_key.to_secret_bytes())
         .wrap_err_with(|| format!("failed to save secret key for {id52}"))?;
     tokio::fs::write(ID52_FILE, &id52).await?;
     Ok((id52, secret_key))

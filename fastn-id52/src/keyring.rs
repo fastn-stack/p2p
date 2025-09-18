@@ -44,7 +44,7 @@ impl crate::SecretKey {
         let id52 = self.id52();
         let entry = keyring::Entry::new("fastn", &id52)?;
         // Store as raw bytes (same as kulfi approach)
-        entry.set_secret(&self.to_bytes())
+        entry.set_secret(&self.to_secret_bytes())
     }
 
     /// Loads a secret key from the system keyring.

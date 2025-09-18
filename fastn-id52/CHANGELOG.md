@@ -8,8 +8,21 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 🔒 Security
+
+- **CRITICAL: Fixed SecretKey Display implementation to prevent secret leakage**
+  - `fmt::Display` now shows public ID52 instead of secret key bytes
+  - Prevents accidental secret key exposure in logs/debugging
+  - Added explicit `to_secret_bytes()` and `to_secret_hex()` for intentional secret access
+  - Deprecated `to_bytes()` method with clear security warning
+  - **BREAKING CHANGE**: Display output changed from secret hex to public ID52
+
 ### Added
 
+- **Explicit secret access methods with security warnings**
+  - `to_secret_bytes()` - raw secret bytes with security warning
+  - `to_secret_hex()` - secret hex string with security warning
+  - Both methods have clear documentation about security implications
 - **Automerge CRDT support** (optional feature: `automerge`)
   - `PublicKey`, `SecretKey`, and `Signature` now implement `autosurgeon::Reconcile` and `autosurgeon::Hydrate`
   - Enables type-safe storage in Automerge CRDT documents
@@ -18,6 +31,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Usage: `fastn-id52 = { workspace = true, features = ["automerge"] }`
 - **PublicKey convenience method**
   - Added `id52()` method to `PublicKey` for consistency with `SecretKey`
+
+### Deprecated
+
+- **`to_bytes()` method** - use `to_secret_bytes()` to make security implications clear
   - Returns the ID52 string representation directly
 - `Clone` trait implementation for `SecretKey`
   - Allows copying secret keys when needed in structs
