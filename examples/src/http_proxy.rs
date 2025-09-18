@@ -20,9 +20,7 @@ pub struct ProxyConfig {
 
 #[fastn_context::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = examples::parse_cli()?;
-
-    match args.mode {
+    match examples::parse_cli()? {
         examples::Server { private_key, config } => {
             let upstream = config.first().unwrap_or(&"http://httpbin.org".to_string()).clone();
             run_server(private_key, upstream).await

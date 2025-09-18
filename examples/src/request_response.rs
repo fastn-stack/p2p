@@ -26,9 +26,7 @@ type EchoResult = Result<EchoResponse, EchoError>;
 
 #[fastn_context::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = examples::parse_cli()?;
-
-    match args.mode {
+    match examples::parse_cli()? {
         examples::Server { private_key, config: _ } => run_server(private_key).await,
         examples::Client { target, config } => {
             let message = config.first().unwrap_or(&"Hello P2P!".to_string()).clone();

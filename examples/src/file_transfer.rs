@@ -13,9 +13,7 @@ pub enum FileProtocol { Download }
 
 #[fastn_context::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = examples::parse_cli()?;
-
-    match args.mode {
+    match examples::parse_cli()? {
         examples::Server { private_key, config: _ } => run_server(private_key).await,
         examples::Client { target, config } => {
             let filename = config.first().ok_or("Filename required")?.clone();
