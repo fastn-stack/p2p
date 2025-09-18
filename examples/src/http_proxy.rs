@@ -1,20 +1,120 @@
 //! HTTP Proxy Example
 //! 
-//! HTTP forwarding over P2P - make HTTP requests through P2P network.
-//! Like using a proxy server but the proxy is reached via P2P.
-//! 
-//! This shows application-layer proxying over P2P.
+//! Client runs local HTTP server, forwards all requests to P2P server.
+//! Server forwards requests to configured upstream HTTP server.
 //! 
 //! Usage: 
-//!   http_proxy server [key]              # Start HTTP proxy server
-//!   http_proxy client <id52> <url>       # Make HTTP request via proxy
+//!   http_proxy server [key] [upstream_url]     # Start proxy server  
+//!   http_proxy client <id52> [local_port]      # Start local HTTP server
 
-// TODO: Implement HTTP proxy example
-// - Forward HTTP requests over P2P
-// - HTTP request/response handling
-// - Headers and body forwarding
-// - Shows application-layer P2P usage
+// Protocol Definition
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
+pub enum HttpProxyProtocol { Forward }
 
-fn main() {
-    println!("TODO: Implement HTTP proxy example");
+// Configuration sent during connection setup
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct ProxyConfig {
+    pub upstream_url: String,  // Where server forwards requests
+    pub local_port: u16,       // Where client listens
+}
+
+#[derive(clap::Parser)]
+struct Args {
+    #[command(subcommand)]
+    mode: Mode,
+}
+
+#[derive(clap::Subcommand)]
+enum Mode {
+    /// Start HTTP proxy server (forwards to upstream)
+    Server {
+        /// Optional private key
+        #[arg(long)]
+        key: Option<String>,
+        /// Upstream HTTP server URL
+        #[arg(default_value = "http://httpbin.org")]
+        upstream: String,
+    },
+    /// Start local HTTP server (forwards via P2P)
+    Client {
+        /// Target proxy server ID52
+        target: String,
+        /// Local port to listen on
+        #[arg(default_value = "8080")]
+        port: u16,
+    },
+}
+
+#[fastn_context::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = <Args as clap::Parser>::parse();
+
+    match args.mode {
+        Mode::Server { key, upstream } => run_server(key, upstream).await,
+        Mode::Client { target, port } => run_client(target, port).await,
+    }
+}
+
+async fn run_server(key: Option<String>, upstream_url: String) -> Result<(), Box<dyn std::error::Error>> {
+    let private_key = examples::key_from_str_or_generate(key.as_deref())?;
+    
+    println!("🔀 HTTP proxy server listening on: {}", private_key.id52());
+    println!("📡 Forwarding to upstream: {}", upstream_url);
+    
+    // Store upstream URL for the handler to use
+    let config = ProxyConfig { 
+        upstream_url: upstream_url.clone(),
+        local_port: 0, // Not used on server side
+    };
+    
+    fastn_p2p::listen(private_key)
+        .handle_streams(HttpProxyProtocol::Forward, move |session, _config: ProxyConfig| {
+            let upstream = upstream_url.clone();
+            async move { http_proxy_handler(session, upstream).await }
+        })
+        .await?;
+        
+    Ok(())
+}
+
+async fn run_client(target: String, local_port: u16) -> Result<(), Box<dyn std::error::Error>> {
+    let private_key = fastn_id52::SecretKey::generate();
+    let target_key = examples::parse_peer_id(&target)?;
+
+    println!("🌐 Starting local HTTP server on port {}", local_port);
+    println!("🔗 Forwarding to P2P server: {}", target);
+
+    // Connect to P2P proxy server
+    let config = ProxyConfig {
+        upstream_url: "unused".to_string(), // Server will use its own upstream
+        local_port,
+    };
+    
+    let mut session = fastn_p2p::client::connect(
+        private_key,
+        target_key,
+        HttpProxyProtocol::Forward,
+        config,
+    ).await?;
+
+    // TODO: Start local HTTP server that forwards requests via session
+    println!("⚠️  TODO: Implement local HTTP server that forwards via P2P session");
+    
+    // For now, just keep the connection alive
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    }
+}
+
+// HTTP proxy handler - forwards requests to upstream server
+async fn http_proxy_handler(mut session: fastn_p2p::Session<HttpProxyProtocol>, upstream_url: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    println!("🔀 HTTP proxy session started from {}", session.peer().id52());
+    println!("📡 Will forward to: {}", upstream_url);
+    
+    // TODO: Parse HTTP requests from session.recv
+    // TODO: Forward to upstream_url using reqwest or hyper
+    // TODO: Stream response back via session.send
+    
+    println!("⚠️  TODO: Implement HTTP request forwarding");
+    Ok(())
 }
