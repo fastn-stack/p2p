@@ -70,13 +70,8 @@ impl Clone for SecretKey {
 // Manual Debug implementation to avoid exposing the secret key material.
 // Only shows the public ID52, omitting the actual 32-byte secret key value
 // that would be exposed by a derived Debug implementation.
-impl fmt::Debug for SecretKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SecretKey")
-            .field("id52", &self.id52())
-            .finish()
-    }
-}
+// Note: Debug implementation intentionally removed for security.
+// Use .id52() for public identifier or .to_secret_hex() for explicit secret access.
 
 /// Ed25519 digital signature.
 ///
