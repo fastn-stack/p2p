@@ -66,34 +66,37 @@ impl Session {
     }
     
     /// Copy from session stdout to a writer (download pattern)
-    pub async fn copy_to<W>(&mut self, mut writer: W) -> Result<u64, Box<dyn std::error::Error>>
+    pub async fn copy_to<W, E>(&mut self, mut writer: W) -> Result<u64, E>
     where
         W: tokio::io::AsyncWrite + Unpin,
+        E: From<std::io::Error>,
     {
         tokio::io::copy(&mut self.stdout, &mut writer).await
-            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+            .map_err(E::from)
     }
     
     /// Copy from a reader to session stdin (upload pattern)
-    pub async fn copy_from<R>(&mut self, mut reader: R) -> Result<u64, Box<dyn std::error::Error>>
+    pub async fn copy_from<R, E>(&mut self, mut reader: R) -> Result<u64, E>
     where
         R: tokio::io::AsyncRead + Unpin,
+        E: From<std::io::Error>,
     {
         tokio::io::copy(&mut reader, &mut self.stdin).await
-            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+            .map_err(E::from)
     }
     
     /// Bidirectional copy - copy reader to stdin and stdout to writer simultaneously
-    pub async fn copy_both<R, W>(&mut self, mut reader: R, mut writer: W) -> Result<(u64, u64), Box<dyn std::error::Error>>
+    pub async fn copy_both<R, W, E>(&mut self, mut reader: R, mut writer: W) -> Result<(u64, u64), E>
     where
         R: tokio::io::AsyncRead + Unpin,
         W: tokio::io::AsyncWrite + Unpin,
+        E: From<std::io::Error>,
     {
         let to_remote = tokio::io::copy(&mut reader, &mut self.stdin);
         let from_remote = tokio::io::copy(&mut self.stdout, &mut writer);
         
         let (sent, received) = futures_util::try_join!(to_remote, from_remote)
-            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
+            .map_err(E::from)?;
             
         Ok((sent, received))
     }

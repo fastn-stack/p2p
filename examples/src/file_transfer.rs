@@ -11,6 +11,17 @@
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 pub enum FileProtocol { Download }
 
+// Custom error type for file operations
+#[derive(Debug, thiserror::Error)]
+pub enum FileError {
+    #[error("File not found: {0}")]
+    NotFound(String),
+    #[error("Permission denied: {0}")]
+    PermissionDenied(String),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+}
+
 #[fastn_p2p::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match examples::parse_cli()? {
@@ -55,34 +66,33 @@ async fn run_client(target: fastn_p2p::PublicKey, filename: String) -> Result<()
     let bytes_copied = session.copy_to(&mut output_file).await?;
     
     println!("✅ Downloaded {} ({} bytes)", filename, bytes_copied);
-    println!("💾 Saved as: {}", local_filename);
+    println!("💾 Saved as: {local_filename}");
     
     Ok(())
 }
 
 // Streaming file handler - filename automatically extracted from connection data
-async fn file_stream_handler(mut session: fastn_p2p::Session<FileProtocol>, filename: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("📂 File request for '{}' from {}", filename, session.peer().id52());
+async fn file_stream_handler(mut session: fastn_p2p::Session<FileProtocol>, filename: String) -> Result<(), FileError> {
+    println!("📂 File request for '{filename}' from {}", session.peer().id52());
     
     // Security: Only serve files in current directory, no path traversal
     if filename.contains("..") || filename.contains('/') {
-        println!("❌ Path traversal attempt blocked: {}", filename);
-        return Ok(());
+        println!("❌ Path traversal attempt blocked: {filename}");
+        return Err(FileError::PermissionDenied(filename));
     }
     
-    match tokio::fs::File::open(&filename).await {
-        Ok(mut file) => {
-            println!("📤 Streaming file: {}", filename);
-            
-            // Clean copy method - no manual tokio::io::copy needed!
-            let bytes_sent = session.copy_from(&mut file).await?;
-            println!("✅ Sent {} ({} bytes)", filename, bytes_sent);
-        }
-        Err(e) => {
-            println!("❌ File error: {}", e);
-            // Could send error info on stream, but keeping simple for now
-        }
-    }
+    let mut file = tokio::fs::File::open(&filename).await
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => FileError::NotFound(filename.clone()),
+            std::io::ErrorKind::PermissionDenied => FileError::PermissionDenied(filename.clone()),
+            _ => FileError::Io(e),
+        })?;
+        
+    println!("📤 Streaming file: {filename}");
+    
+    // Clean copy method with specific error type
+    let bytes_sent = session.copy_from(&mut file).await?;
+    println!("✅ Sent {filename} ({bytes_sent} bytes)");
     
     Ok(())
 }
