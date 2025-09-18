@@ -63,22 +63,20 @@ async fn run_client(target: String, filename: String) -> Result<(), Box<dyn std:
 
     println!("📥 Requesting file '{}' from {}", filename, target);
 
+    // Connect with protocol + filename data - no manual stream writing needed!
     let mut session = fastn_p2p::client::connect(
         private_key,
         target_key,
         FileProtocol::Download,
+        filename.clone(), // <- Data sent automatically during connection
     ).await?;
 
-    // Send filename as first line
-    session.stdin.write_all(filename.as_bytes()).await?;
-    session.stdin.write_all(b"\n").await?;
-
-    // Stream file content directly to local file
+    // Stream file content directly to local file using convenient copy method
     let local_filename = format!("downloaded_{}", filename);
     let mut output_file = tokio::fs::File::create(&local_filename).await?;
     
-    // Direct async copy from stream to file - no memory loading!
-    let bytes_copied = tokio::io::copy(&mut session.stdout, &mut output_file).await?;
+    // Clean copy method - no manual tokio::io::copy needed!
+    let bytes_copied = session.copy_to(&mut output_file).await?;
     
     println!("✅ Downloaded {} ({} bytes)", filename, bytes_copied);
     println!("💾 Saved as: {}", local_filename);
@@ -86,13 +84,9 @@ async fn run_client(target: String, filename: String) -> Result<(), Box<dyn std:
     Ok(())
 }
 
-// Streaming file handler - serves files using direct async I/O copy
-async fn file_stream_handler(mut session: fastn_p2p::Session<FileProtocol>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("📂 File streaming session started from {}", session.peer().id52());
-    
-    // TODO: Read filename from stream (need fastn_net::next_string utility)
-    // For now, hardcode a test file
-    let filename = "Cargo.toml"; // Use existing file for testing
+// Streaming file handler - filename automatically extracted from connection data
+async fn file_stream_handler(mut session: fastn_p2p::Session<FileProtocol>, filename: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    println!("📂 File request for '{}' from {}", filename, session.peer().id52());
     
     // Security: Only serve files in current directory, no path traversal
     if filename.contains("..") || filename.contains('/') {
@@ -100,13 +94,12 @@ async fn file_stream_handler(mut session: fastn_p2p::Session<FileProtocol>) -> R
         return Ok(());
     }
     
-    match tokio::fs::File::open(filename).await {
+    match tokio::fs::File::open(&filename).await {
         Ok(mut file) => {
             println!("📤 Streaming file: {}", filename);
             
-            // Direct async copy from file to stream - zero memory copying!
-            let bytes_sent = tokio::io::copy(&mut file, &mut session.send).await
-                .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
+            // Clean copy method - no manual tokio::io::copy needed!
+            let bytes_sent = session.copy_from(&mut file).await?;
             println!("✅ Sent {} ({} bytes)", filename, bytes_sent);
         }
         Err(e) => {

@@ -40,6 +40,41 @@ impl<PROTOCOL> Session<PROTOCOL> {
         // TODO: Open bidirectional stream to client
         todo!("Open bidirectional stream back to client")
     }
+    
+    /// Copy from session recv stream to a writer (download pattern)
+    pub async fn copy_to<W>(&mut self, mut writer: W) -> Result<u64, Box<dyn std::error::Error + Send + Sync>>
+    where
+        W: tokio::io::AsyncWrite + Unpin,
+    {
+        tokio::io::copy(&mut self.recv, &mut writer).await
+            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })
+    }
+    
+    /// Copy from a reader to session send stream (upload pattern)
+    pub async fn copy_from<R>(&mut self, mut reader: R) -> Result<u64, Box<dyn std::error::Error + Send + Sync>>
+    where
+        R: tokio::io::AsyncRead + Unpin,
+    {
+        tokio::io::copy(&mut reader, &mut self.send).await
+            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })
+    }
+    
+    /// Bidirectional copy - copy reader to send stream and recv stream to writer simultaneously
+    pub async fn copy_both<R, W>(&mut self, mut reader: R, mut writer: W) -> Result<(u64, u64), Box<dyn std::error::Error + Send + Sync>>
+    where
+        R: tokio::io::AsyncRead + Unpin,
+        W: tokio::io::AsyncWrite + Unpin,
+    {
+        // TODO: Need to implement bidirectional copy using futures::try_join
+        // For now, placeholder
+        let to_remote = tokio::io::copy(&mut reader, &mut self.send);
+        let from_remote = tokio::io::copy(&mut self.recv, &mut writer);
+        
+        let (sent, received) = futures_util::try_join!(to_remote, from_remote)
+            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
+            
+        Ok((sent, received))
+    }
 }
 
 /// Create a new Session (used internally by listener)

@@ -27,17 +27,19 @@ where
     crate::coordination::internal_call(our_key, &target, protocol, request).await
 }
 
-/// Establish streaming P2P session (new functionality)
-pub async fn connect<PROTOCOL>(
+/// Establish streaming P2P session with automatic data sending
+pub async fn connect<PROTOCOL, DATA>(
     our_key: fastn_id52::SecretKey,
     target: fastn_id52::PublicKey, 
-    protocol: PROTOCOL
+    protocol: PROTOCOL,
+    data: DATA
 ) -> Result<Session, ConnectionError>
 where
     PROTOCOL: serde::Serialize + for<'de> serde::Deserialize<'de> + std::fmt::Debug,
+    DATA: serde::Serialize,
 {
-    // TODO: Implement streaming connection establishment
-    todo!("Connect to {target} with protocol {protocol:?} using {}", our_key.id52())
+    // TODO: Implement streaming connection establishment with automatic data sending
+    todo!("Connect to {target} with protocol {protocol:?} and data, using {}", our_key.id52())
 }
 
 /// Client-side streaming session
@@ -61,6 +63,39 @@ impl Session {
     pub async fn accept_bi(&mut self) -> Result<(iroh::endpoint::RecvStream, iroh::endpoint::SendStream), ConnectionError> {
         // TODO: Accept incoming bidirectional stream from server
         todo!("Accept bidirectional stream from server")
+    }
+    
+    /// Copy from session stdout to a writer (download pattern)
+    pub async fn copy_to<W>(&mut self, mut writer: W) -> Result<u64, Box<dyn std::error::Error>>
+    where
+        W: tokio::io::AsyncWrite + Unpin,
+    {
+        tokio::io::copy(&mut self.stdout, &mut writer).await
+            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+    }
+    
+    /// Copy from a reader to session stdin (upload pattern)
+    pub async fn copy_from<R>(&mut self, mut reader: R) -> Result<u64, Box<dyn std::error::Error>>
+    where
+        R: tokio::io::AsyncRead + Unpin,
+    {
+        tokio::io::copy(&mut reader, &mut self.stdin).await
+            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+    }
+    
+    /// Bidirectional copy - copy reader to stdin and stdout to writer simultaneously
+    pub async fn copy_both<R, W>(&mut self, mut reader: R, mut writer: W) -> Result<(u64, u64), Box<dyn std::error::Error>>
+    where
+        R: tokio::io::AsyncRead + Unpin,
+        W: tokio::io::AsyncWrite + Unpin,
+    {
+        let to_remote = tokio::io::copy(&mut reader, &mut self.stdin);
+        let from_remote = tokio::io::copy(&mut self.stdout, &mut writer);
+        
+        let (sent, received) = futures_util::try_join!(to_remote, from_remote)
+            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
+            
+        Ok((sent, received))
     }
 }
 
