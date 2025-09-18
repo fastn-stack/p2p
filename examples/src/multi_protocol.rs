@@ -116,7 +116,7 @@ async fn run_server(private_key: fastn_p2p::SecretKey) -> Result<(), Box<dyn std
     // Multi-protocol server - chain multiple handlers!
     fastn_p2p::listen(private_key)
         .handle_requests(EchoProtocol::Echo, echo_handler)
-        .handle_streams(FileProtocol::Download, file_handler)
+        .handle_streams(FileProtocol::Download, (), file_handler)
         .handle_requests(MathProtocol::Calculate, math_handler)
         .await?;
 
@@ -197,6 +197,7 @@ async fn echo_handler(req: EchoRequest) -> Result<EchoResponse, EchoError> {
 async fn file_handler(
     mut session: fastn_p2p::Session<FileProtocol>,
     filename: String,
+    _state: (),
 ) -> Result<(), FileError> {
     println!("📂 File request: '{filename}' from {}", session.peer().id52());
 

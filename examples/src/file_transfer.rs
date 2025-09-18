@@ -43,7 +43,7 @@ async fn run_server(private_key: fastn_p2p::SecretKey) -> Result<(), Box<dyn std
     println!("⚠️  Security: Only files in current directory are served!");
 
     fastn_p2p::listen(private_key)
-        .handle_streams(FileProtocol::Download, file_stream_handler)
+        .handle_streams(FileProtocol::Download, (), file_stream_handler)
         .await?;
 
     Ok(())
@@ -83,6 +83,7 @@ async fn run_client(
 async fn file_stream_handler(
     mut session: fastn_p2p::Session<FileProtocol>,
     filename: String,
+    _state: (),
 ) -> Result<(), FileError> {
     println!(
         "📂 File request for '{filename}' from {}",

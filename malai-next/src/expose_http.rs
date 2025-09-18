@@ -50,53 +50,59 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔑 Your ID52: {}", secret_key.id52());
     println!("🔗 Connect with: http_bridge {}", secret_key.id52());
     
-    // Production-grade HTTP over P2P server
+    // Production-grade HTTP over P2P server with state parameter
     fastn_p2p::listen(secret_key)
-        .handle_streams(HttpProtocol::Forward, move |mut session, http_request: HttpRequest| {
-            let host = host.clone();
-            async move {
-                tracing::info!(
-                    "📡 HTTP request: {} {} from {}",
-                    http_request.method, http_request.path,
-                    session.peer().id52()
-                );
-                
-                // Connect to local HTTP server
-                let upstream_addr = format!("{host}:{port}");
-                let upstream_stream = tokio::net::TcpStream::connect(&upstream_addr).await
-                    .map_err(|e| HttpError::Connection(format!("Failed to connect to {upstream_addr}: {e}")))?;
-                
-                // Reconstruct HTTP request for local server
-                let mut request_lines = vec![
-                    format!("{} {} {}", http_request.method, http_request.path, http_request.version)
-                ];
-                
-                for (key, value) in http_request.headers {
-                    request_lines.push(format!("{key}: {value}"));
-                }
-                request_lines.push(String::new()); // Empty line before body
-                
-                let request_header = request_lines.join("\r\n");
-                let (upstream_read, mut upstream_write) = upstream_stream.into_split();
-                
-                // Send HTTP request header to local server
-                tokio::io::AsyncWriteExt::write_all(&mut upstream_write, request_header.as_bytes()).await?;
-                
-                // Use copy_both for efficient bidirectional HTTP body streaming
-                match session.copy_both(upstream_read, upstream_write).await {
-                    Ok((from_local, to_local)) => {
-                        tracing::info!("✅ HTTP request completed: {to_local} sent to local, {from_local} received");
-                    }
-                    Err(e) => {
-                        tracing::error!("❌ Proxy stream error: {e}");
-                        return Err(HttpError::Io(e));
-                    }
-                }
-                
-                Ok(())
-            }
-        })
+        .handle_streams(HttpProtocol::Forward, (host, port), http_proxy_handler)
         .await?;
+    
+    Ok(())
+}
+
+// Clean handler function - no complex closures!
+async fn http_proxy_handler(
+    mut session: fastn_p2p::Session<HttpProtocol>,
+    http_request: HttpRequest,
+    state: (String, u16),
+) -> Result<(), HttpError> {
+    let (host, port) = state;
+    
+    tracing::info!(
+        "📡 HTTP request: {} {} from {}",
+        http_request.method, http_request.path,
+        session.peer().id52()
+    );
+    
+    // Connect to local HTTP server
+    let upstream_addr = format!("{host}:{port}");
+    let upstream_stream = tokio::net::TcpStream::connect(&upstream_addr).await
+        .map_err(|e| HttpError::Connection(format!("Failed to connect to {upstream_addr}: {e}")))?;
+    
+    // Reconstruct HTTP request for local server
+    let mut request_lines = vec![
+        format!("{} {} {}", http_request.method, http_request.path, http_request.version)
+    ];
+    
+    for (key, value) in http_request.headers {
+        request_lines.push(format!("{key}: {value}"));
+    }
+    request_lines.push(String::new()); // Empty line before body
+    
+    let request_header = request_lines.join("\r\n");
+    let (upstream_read, mut upstream_write) = upstream_stream.into_split();
+    
+    // Send HTTP request header to local server
+    tokio::io::AsyncWriteExt::write_all(&mut upstream_write, request_header.as_bytes()).await?;
+    
+    // Use copy_both for efficient bidirectional HTTP body streaming
+    match session.copy_both(upstream_read, upstream_write).await {
+        Ok((from_local, to_local)) => {
+            tracing::info!("✅ HTTP request completed: {to_local} sent to local, {from_local} received");
+        }
+        Err(e) => {
+            tracing::error!("❌ Proxy stream error: {e}");
+            return Err(HttpError::Io(e));
+        }
+    }
     
     Ok(())
 }

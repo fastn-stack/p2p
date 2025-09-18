@@ -26,15 +26,16 @@ impl ServerBuilder {
     }
 
     /// Add a streaming handler for a protocol
-    pub fn handle_streams<P, F, Fut, DATA, ERROR>(self, _protocol: P, _handler: F) -> Self
+    pub fn handle_streams<P, F, Fut, DATA, STATE, ERROR>(self, _protocol: P, _state: STATE, _handler: F) -> Self
     where
         P: serde::Serialize + std::fmt::Debug,
         DATA: serde::de::DeserializeOwned,
-        F: Fn(crate::server::Session<P>, DATA) -> Fut + Send + Sync + 'static,
+        STATE: Clone + Send + Sync + 'static,
+        F: Fn(crate::server::Session<P>, DATA, STATE) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = Result<(), ERROR>> + Send,
         ERROR: std::error::Error + Send + Sync + 'static,
     {
-        // TODO: Store the handler for protocol dispatch with automatic data extraction
+        // TODO: Store the handler for protocol dispatch with automatic data extraction and state cloning
         self
     }
 }
