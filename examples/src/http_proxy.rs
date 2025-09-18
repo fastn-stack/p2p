@@ -47,20 +47,25 @@ async fn run_server(
     println!("📡 Forwarding to upstream: {}", upstream_url);
 
     fastn_p2p::listen(private_key)
-        .handle_streams(HttpProxyProtocol::Forward, move |session, _: ()| {
+        .handle_streams(HttpProxyProtocol::Forward, move |mut session, _: ()| {
             let upstream = upstream_url.clone();
             async move {
                 println!(
                     "🔀 HTTP proxy session started from {}",
                     session.peer().id52()
                 );
-                println!("📡 Will forward to: {upstream}");
+                println!("📡 Forwarding to: {upstream}");
 
-                // TODO: Parse HTTP requests from session.recv
-                // TODO: Forward to upstream using reqwest or hyper
-                // TODO: Stream response back via session.send
-
-                println!("⚠️  TODO: Implement HTTP request forwarding");
+                // For now, just use copy_both to forward raw HTTP
+                // TODO: Parse HTTP properly and forward to upstream URL
+                println!("⚠️  TODO: Complete HTTP parsing and upstream forwarding");
+                println!("📡 Would forward HTTP requests to: {upstream}");
+                
+                // For demonstration, just echo back a simple response
+                let response = "HTTP/1.1 200 OK\r\nContent-Length: 25\r\n\r\nHTTP Proxy TODO Response";
+                tokio::io::AsyncWriteExt::write_all(&mut session.send, response.as_bytes()).await
+                    .map_err(ProxyError::Io)?;
+                
                 Ok::<(), ProxyError>(())
             }
         })
@@ -87,12 +92,35 @@ async fn run_client(
     )
     .await?;
 
-    // TODO: Start local HTTP server that forwards requests via session
-    println!("⚠️  TODO: Implement local HTTP server that forwards via P2P session");
-
-    // For now, just keep the connection alive
+    // Start local HTTP server that forwards via P2P
+    let addr: std::net::SocketAddr = format!("127.0.0.1:{port}").parse()?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    
+    println!("🌐 Local HTTP server running on http://localhost:{port}");
+    println!("🔗 All requests will be forwarded via P2P to upstream server");
+    
     loop {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        match listener.accept().await {
+            Ok((mut stream, _)) => {
+                println!("📥 HTTP request received");
+                
+                // Use copy_both to bidirectionally forward HTTP traffic
+                let (tcp_read, tcp_write) = stream.into_split();
+                
+                // This is the power of our copy_both method!
+                match session.copy_both(tcp_read, tcp_write).await {
+                    Ok((sent, received)) => {
+                        println!("✅ HTTP request/response completed: {sent} sent, {received} received");
+                    }
+                    Err(e) => {
+                        println!("❌ Proxy error: {e}");
+                    }
+                }
+            }
+            Err(e) => {
+                println!("❌ Failed to accept connection: {e}");
+            }
+        }
     }
 }
 

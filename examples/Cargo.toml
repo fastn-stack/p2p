@@ -10,6 +10,8 @@ tokio.workspace = true
 serde.workspace = true
 clap.workspace = true
 thiserror.workspace = true
+reqwest.workspace = true
+hyper = { version = "1", features = ["server", "http1"] }
 
 # Example binaries - each showcases a major P2P use case
 [[bin]]
