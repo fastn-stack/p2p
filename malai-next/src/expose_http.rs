@@ -35,8 +35,6 @@ pub enum HttpError {
 
 #[fastn_p2p::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
-    
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 3 {
         eprintln!("Usage: {} <host> <port>", args[0]);
