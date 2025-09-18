@@ -6,23 +6,9 @@ description = "P2P examples showcasing all major use cases"
 
 [dependencies]
 fastn-p2p = { path = "../fastn-p2p" }
-fastn-net = { path = "../fastn-net" }
-fastn-id52 = { path = "../fastn-id52" }
-fastn-context.workspace = true
 tokio.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-eyre.workspace = true
 serde.workspace = true
-serde_json.workspace = true
-futures-util.workspace = true
-chrono.workspace = true
 clap.workspace = true
-colored.workspace = true
-atty.workspace = true
-
-[dev-dependencies]
-tempfile.workspace = true
 
 # Example binaries - each showcases a major P2P use case
 [[bin]]

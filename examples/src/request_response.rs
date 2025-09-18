@@ -24,7 +24,7 @@ pub enum EchoError { InvalidMessage(String) }
 
 type EchoResult = Result<EchoResponse, EchoError>;
 
-#[fastn_context::main]
+#[fastn_p2p::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match examples::parse_cli()? {
         examples::Server { private_key, config: _ } => run_server(private_key).await,
@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-async fn run_server(private_key: fastn_id52::SecretKey) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_server(private_key: fastn_p2p::SecretKey) -> Result<(), Box<dyn std::error::Error>> {
     println!("🎧 Server listening on: {}", private_key.id52());
     
     fastn_p2p::listen(private_key)
@@ -45,8 +45,8 @@ async fn run_server(private_key: fastn_id52::SecretKey) -> Result<(), Box<dyn st
     Ok(())
 }
 
-async fn run_client(target: fastn_id52::PublicKey, message: String) -> Result<(), Box<dyn std::error::Error>> {
-    let private_key = fastn_id52::SecretKey::generate();
+async fn run_client(target: fastn_p2p::PublicKey, message: String) -> Result<(), Box<dyn std::error::Error>> {
+    let private_key = fastn_p2p::SecretKey::generate();
 
     println!("📤 Sending '{}' to {}", message, target);
 

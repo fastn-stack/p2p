@@ -18,7 +18,7 @@ pub struct ProxyConfig {
     pub local_port: u16,       // Where client listens
 }
 
-#[fastn_context::main]
+#[fastn_p2p::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match examples::parse_cli()? {
         examples::Server { private_key, config } => {
@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-async fn run_server(private_key: fastn_id52::SecretKey, upstream_url: String) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_server(private_key: fastn_p2p::SecretKey, upstream_url: String) -> Result<(), Box<dyn std::error::Error>> {
     
     println!("🔀 HTTP proxy server listening on: {}", private_key.id52());
     println!("📡 Forwarding to upstream: {}", upstream_url);
@@ -53,8 +53,8 @@ async fn run_server(private_key: fastn_id52::SecretKey, upstream_url: String) ->
     Ok(())
 }
 
-async fn run_client(target: fastn_id52::PublicKey, port: u16) -> Result<(), Box<dyn std::error::Error>> {
-    let private_key = fastn_id52::SecretKey::generate();
+async fn run_client(target: fastn_p2p::PublicKey, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+    let private_key = fastn_p2p::SecretKey::generate();
 
     println!("🌐 Starting local HTTP server on port {}", port);
     println!("🔗 Forwarding to P2P server: {}", target);

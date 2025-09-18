@@ -11,7 +11,7 @@
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 pub enum FileProtocol { Download }
 
-#[fastn_context::main]
+#[fastn_p2p::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match examples::parse_cli()? {
         examples::Server { private_key, config: _ } => run_server(private_key).await,
@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-async fn run_server(private_key: fastn_id52::SecretKey) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_server(private_key: fastn_p2p::SecretKey) -> Result<(), Box<dyn std::error::Error>> {
     
     println!("📁 File server listening on: {}", private_key.id52());
     println!("⚠️  Security: Only files in current directory are served!");
@@ -34,8 +34,8 @@ async fn run_server(private_key: fastn_id52::SecretKey) -> Result<(), Box<dyn st
     Ok(())
 }
 
-async fn run_client(target: fastn_id52::PublicKey, filename: String) -> Result<(), Box<dyn std::error::Error>> {
-    let private_key = fastn_id52::SecretKey::generate();
+async fn run_client(target: fastn_p2p::PublicKey, filename: String) -> Result<(), Box<dyn std::error::Error>> {
+    let private_key = fastn_p2p::SecretKey::generate();
 
     println!("📥 Requesting file '{}' from {}", filename, target);
 

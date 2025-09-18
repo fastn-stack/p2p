@@ -1,15 +1,15 @@
 //! Shared utilities for P2P examples
 
 /// Parse a key from string or generate a new one
-pub fn key_from_str_or_generate(key_str: Option<&str>) -> Result<fastn_id52::SecretKey, Box<dyn std::error::Error>> {
+pub fn key_from_str_or_generate(key_str: Option<&str>) -> Result<fastn_p2p::SecretKey, Box<dyn std::error::Error>> {
     match key_str {
         Some(s) => Ok(s.parse()?),
-        None => Ok(fastn_id52::SecretKey::generate()),
+        None => Ok(fastn_p2p::SecretKey::generate()),
     }
 }
 
 /// Parse a peer ID from string
-pub fn parse_peer_id(id52_str: &str) -> Result<fastn_id52::PublicKey, Box<dyn std::error::Error>> {
+pub fn parse_peer_id(id52_str: &str) -> Result<fastn_p2p::PublicKey, Box<dyn std::error::Error>> {
     Ok(id52_str.parse()?)
 }
 
@@ -49,11 +49,11 @@ pub enum Mode {
 /// Parsed mode with keys already generated/parsed
 pub enum ParsedMode {
     Server {
-        private_key: fastn_id52::SecretKey,
+        private_key: fastn_p2p::SecretKey,
         config: Vec<String>,
     },
     Client {
-        target: fastn_id52::PublicKey,
+        target: fastn_p2p::PublicKey,
         config: Vec<String>,
     },
 }
