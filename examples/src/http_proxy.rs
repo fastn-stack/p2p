@@ -18,40 +18,19 @@ pub struct ProxyConfig {
     pub local_port: u16,       // Where client listens
 }
 
-#[derive(clap::Parser)]
-struct Args {
-    #[command(subcommand)]
-    mode: Mode,
-}
-
-#[derive(clap::Subcommand)]
-enum Mode {
-    /// Start HTTP proxy server (forwards to upstream)
-    Server {
-        /// Optional private key
-        #[arg(long)]
-        key: Option<String>,
-        /// Upstream HTTP server URL
-        #[arg(default_value = "http://httpbin.org")]
-        upstream: String,
-    },
-    /// Start local HTTP server (forwards via P2P)
-    Client {
-        /// Target proxy server ID52
-        target: String,
-        /// Local port to listen on
-        #[arg(default_value = "8080")]
-        port: u16,
-    },
-}
-
 #[fastn_context::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = <Args as clap::Parser>::parse();
+    let args = <examples::Args as clap::Parser>::parse();
 
     match args.mode {
-        Mode::Server { key, upstream } => run_server(key, upstream).await,
-        Mode::Client { target, port } => run_client(target, port).await,
+        examples::Mode::Server { key } => {
+            let upstream = std::env::args().nth(3).unwrap_or_else(|| "http://httpbin.org".to_string());
+            run_server(key, upstream).await
+        }
+        examples::Mode::Client { target, args } => {
+            let port: u16 = args.first().unwrap_or(&"8080".to_string()).parse().unwrap_or(8080);
+            run_client(target, port).await
+        }
     }
 }
 

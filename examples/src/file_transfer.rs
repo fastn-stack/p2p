@@ -11,36 +11,16 @@
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 pub enum FileProtocol { Download }
 
-#[derive(clap::Parser)]
-struct Args {
-    #[command(subcommand)]
-    mode: Mode,
-}
-
-#[derive(clap::Subcommand)]
-enum Mode {
-    /// Start file server
-    Server {
-        /// Optional private key
-        #[arg(long)]
-        key: Option<String>,
-    },
-    /// Download file from server
-    Client {
-        /// Target server ID52
-        target: String,
-        /// Filename to download
-        filename: String,
-    },
-}
-
 #[fastn_context::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = <Args as clap::Parser>::parse();
+    let args = <examples::Args as clap::Parser>::parse();
 
     match args.mode {
-        Mode::Server { key } => run_server(key).await,
-        Mode::Client { target, filename } => run_client(target, filename).await,
+        examples::Mode::Server { key } => run_server(key).await,
+        examples::Mode::Client { target, args } => {
+            let filename = args.first().ok_or("Filename required")?.clone();
+            run_client(target, filename).await
+        }
     }
 }
 
