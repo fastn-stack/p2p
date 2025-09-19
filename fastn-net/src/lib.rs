@@ -59,9 +59,7 @@ pub use http_to_peer::{http_to_peer, http_to_peer_non_streaming};
 pub use peer_to_http::peer_to_http;
 pub use ping::{PONG, ping};
 pub use protocol::{APNS_IDENTITY, Protocol, ProtocolHeader};
-pub use secret::{
-    SECRET_KEY_FILE, generate_and_save_key, generate_secret_key, get_secret_key, read_or_create_key,
-};
+pub use secret::read_or_create_key;
 pub use tcp::{peer_to_tcp, pipe_tcp_stream_over_iroh, tcp_to_peer};
 pub use utils::mkdir;
 pub use utils_iroh::{
