@@ -272,13 +272,15 @@ ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" << 'EOF'
 EOF
 success "Dependencies installed"
 
-# Copy project to droplet
-log "Copying fastn-p2p project to droplet..."
-TEMP_DIR="/tmp/${TEST_ID}_project"
-mkdir -p "$TEMP_DIR"
-rsync -avz --exclude target --exclude .git . "$TEMP_DIR/" >/dev/null
-scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no -r "$TEMP_DIR" root@"$DROPLET_IP":/root/fastn-p2p >/dev/null
-success "Project copied to droplet"
+# Clone project from GitHub (much faster than upload)
+log "Cloning fastn-p2p from GitHub..."
+ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" << 'EOF'
+    cd /root
+    git clone https://github.com/fastn-stack/p2p.git fastn-p2p
+    cd fastn-p2p
+    echo "Project cloned successfully"
+EOF
+success "Project cloned from GitHub"
 
 # Copy high-quality MP3 if available
 if [[ "$HIGH_QUALITY" == "true" ]] && [[ -f "high_quality_audio.mp3" ]]; then
