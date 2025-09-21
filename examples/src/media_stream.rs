@@ -60,15 +60,11 @@ pub enum MediaError {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match examples::parse_cli()? {
         examples::Server {
-            private_key,
+            private_key: _,
             config,
         } => {
-            // Use persistent key if no specific key provided
-            let server_key = if config.iter().any(|c| c.starts_with("--key")) {
-                private_key
-            } else {
-                examples::get_or_create_persistent_key("media_stream")
-            };
+            // Always use persistent key for consistent server ID
+            let server_key = examples::get_or_create_persistent_key("media_stream");
             let mp3_file = config.first().cloned().unwrap_or_else(|| "examples/assets/test-audio.mp3".to_string());
             run_publisher(server_key, mp3_file).await
         }
