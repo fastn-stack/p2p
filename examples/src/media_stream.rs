@@ -14,10 +14,40 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 use tokio::time::interval;
 
-// Protocol Definition
+// Protocol Definition - Pull-based streaming
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 pub enum MediaProtocol {
     AudioStream,
+}
+
+// Client requests for pull-based streaming
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub enum StreamRequest {
+    // Request next chunk of audio data
+    RequestChunk { chunk_id: u64 },
+    // Get stream info (duration, format, etc.)
+    GetStreamInfo,
+    // Stop streaming
+    Stop,
+}
+
+// Server responses for pull-based streaming  
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub enum StreamResponse {
+    // Audio chunk data
+    AudioChunk(AudioChunk),
+    // Stream information
+    StreamInfo {
+        total_chunks: u64,
+        chunk_size: usize,
+        sample_rate: u32,
+        channels: u16,
+        duration_seconds: f64,
+    },
+    // End of stream
+    EndOfStream,
+    // Error response
+    Error(String),
 }
 
 // Audio chunk for streaming

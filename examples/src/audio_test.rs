@@ -64,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ Audio system ready (+{:.3}s)", audio_setup_time.as_secs_f64());
     
     // Play the entire audio file as one source
-    let playback_start = Instant::now();
+    let _playback_start = Instant::now();
     println!("🎼 Playing audio...");
     
     // Convert all PCM data to audio source
@@ -84,11 +84,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎵 Playing {:.1}s of {}Hz {} channel audio", 
              duration_seconds, sample_rate, 
              if channels == 1 { "mono" } else { "stereo" });
+    println!("💡 Press SPACE to pause/resume, 'q' to quit");
     
     sink.append(source);
     
-    // Wait for playback to complete
-    sink.sleep_until_end();
+    // Interactive playback control
+    let sink_clone = std::sync::Arc::new(sink);
+    let control_sink = sink_clone.clone();
+    
+    // Spawn input handler for raw key input
+    tokio::spawn(async move {
+        use std::io::Read;
+        use termion::raw::IntoRawMode;
+        
+        // Put terminal in raw mode for immediate key response
+        let _raw = std::io::stdout().into_raw_mode().expect("Failed to enter raw mode");
+        let mut stdin = std::io::stdin();
+        let mut buffer = [0u8; 1];
+        
+        loop {
+            if stdin.read_exact(&mut buffer).is_err() {
+                break;
+            }
+            
+            match buffer[0] {
+                b' ' => {
+                    if control_sink.is_paused() {
+                        control_sink.play();
+                        println!("▶️  Resumed");
+                    } else {
+                        control_sink.pause();
+                        println!("⏸️  Paused");
+                    }
+                }
+                b'q' | 27 => { // q or ESC
+                    control_sink.stop();
+                    println!("⏹️  Stopped");
+                    break;
+                }
+                _ => {
+                    // Ignore other keys
+                }
+            }
+        }
+    });
+    
+    // Wait for playback to complete or be stopped
+    while !sink_clone.empty() {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
     
     let total_time = test_start.elapsed();
     println!("✅ Playback completed (+{:.3}s total)", total_time.as_secs_f64());
