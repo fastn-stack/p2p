@@ -65,8 +65,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             // Always use persistent key for consistent server ID
             let server_key = examples::get_or_create_persistent_key("media_stream");
-            let mp3_file = config.first().cloned().unwrap_or_else(|| "examples/assets/test-audio.mp3".to_string());
-            run_publisher(server_key, mp3_file).await
+            let audio_file = config.first().cloned().unwrap_or_else(|| "examples/assets/SerenataGranados.ogg".to_string());
+            run_publisher(server_key, audio_file).await
         }
         examples::Client { target, config: _ } => {
             run_subscriber(target).await
@@ -76,32 +76,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn run_publisher(
     private_key: fastn_p2p::SecretKey,
-    mp3_file: String,
+    audio_file: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("🎵 Audio Publisher starting...");
-    println!("📁 MP3 file: {}", mp3_file);
+    println!("📁 Audio file: {}", audio_file);
     println!("🎧 Publisher listening on: {}", private_key.id52());
     println!("");
     println!("🚀 To connect from another machine, run:");
     println!("   cargo run --bin media_stream -- client {}", private_key.id52());
     println!("");
     
-    // Check if MP3 file exists, if not create a test tone
-    if !std::path::Path::new(&mp3_file).exists() {
-        println!("📝 Creating test audio file: {}", mp3_file);
-        create_test_audio(&mp3_file).await?;
+    // Check if audio file exists, if not create a test tone
+    if !std::path::Path::new(&audio_file).exists() {
+        println!("📝 Creating test audio file: {}", audio_file);
+        create_test_audio(&audio_file).await?;
     }
     
-    // Show MP3 info at startup
-    if let Ok((_, sample_rate, channels)) = load_mp3_file_with_format(&mp3_file).await {
-        let file_size = std::fs::metadata(&mp3_file).map(|m| m.len()).unwrap_or(0);
+    // Show audio info at startup
+    if let Ok((_, sample_rate, channels)) = load_audio_file_with_format(&audio_file).await {
+        let file_size = std::fs::metadata(&audio_file).map(|m| m.len()).unwrap_or(0);
         println!("📀 Audio file info:");
-        println!("   📦 File: {} ({:.1} KB)", mp3_file, file_size as f64 / 1024.0);
+        println!("   📦 File: {} ({:.1} KB)", audio_file, file_size as f64 / 1024.0);
         println!("   🎵 Format: {}Hz, {} channel(s)", sample_rate, channels);
     }
 
     fastn_p2p::listen(private_key)
-        .handle_streams(MediaProtocol::AudioStream, mp3_file, audio_publisher_handler)
+        .handle_streams(MediaProtocol::AudioStream, audio_file, audio_publisher_handler)
         .await?;
 
     Ok(())
@@ -230,12 +230,12 @@ async fn run_subscriber(
 async fn audio_publisher_handler(
     mut session: fastn_p2p::Session<MediaProtocol>,
     _data: (),
-    mp3_file: String,
+    audio_file: String,
 ) -> Result<(), MediaError> {
     println!("🔊 New subscriber connected: {}", session.peer().id52());
     
-    // Read and decode MP3 file to get actual audio format
-    let (audio_data, sample_rate, channels) = load_mp3_file_with_format(&mp3_file).await?;
+    // Read and decode audio file to get actual audio format
+    let (audio_data, sample_rate, channels) = load_audio_file_with_format(&audio_file).await?;
     let mut stats = StreamStats::default();
     stats.start_time = Some(Instant::now());
     
@@ -313,20 +313,54 @@ async fn audio_publisher_handler(
     Ok(())
 }
 
-// Load MP3 file and decode to PCM audio data with format info
-async fn load_mp3_file_with_format(filename: &str) -> Result<(Vec<u8>, u32, u16), MediaError> {
-    println!("📁 Loading and decoding MP3 file: {}", filename);
+// Load audio file (MP3/OGG) and decode to PCM audio data with format info
+async fn load_audio_file_with_format(filename: &str) -> Result<(Vec<u8>, u32, u16), MediaError> {
+    println!("📁 Loading and decoding audio file: {}", filename);
     
     let file_data = tokio::fs::read(filename).await
         .map_err(|_| MediaError::FileNotFound(filename.to_string()))?;
     
-    // Use minimp3 to decode MP3 to PCM
-    let mut decoder = minimp3::Decoder::new(std::io::Cursor::new(&file_data));
+    // Try different decoders based on file extension
+    let extension = std::path::Path::new(filename)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    
+    let (pcm_data, sample_rate, channels) = match extension.as_str() {
+        "mp3" => decode_mp3(&file_data)?,
+        "ogg" => decode_with_symphonia(&file_data)?,
+        _ => {
+            // Try symphonia first (supports many formats), fallback to mp3
+            decode_with_symphonia(&file_data)
+                .or_else(|_| decode_mp3(&file_data))?
+        }
+    };
+    
+    // Calculate and display audio info
+    let file_size_kb = file_data.len() as f64 / 1024.0;
+    let pcm_size_kb = pcm_data.len() as f64 / 1024.0;
+    let duration = pcm_data.len() as f64 / (sample_rate as f64 * channels as f64 * 2.0); // 2 bytes per sample
+    let bitrate = (file_size_kb * 8.0) / duration;
+    
+    println!("✅ Audio Decoded:");
+    println!("   📦 File size: {:.1} KB", file_size_kb);
+    println!("   🔊 PCM size: {:.1} KB", pcm_size_kb);
+    println!("   ⏱️  Duration: {:.1}s", duration);
+    println!("   🎵 Sample rate: {} Hz", sample_rate);
+    println!("   📻 Channels: {}", channels);
+    println!("   📡 Bitrate: {:.0} kbps", bitrate);
+    
+    Ok((pcm_data, sample_rate, channels))
+}
+
+// Decode MP3 using minimp3
+fn decode_mp3(file_data: &[u8]) -> Result<(Vec<u8>, u32, u16), MediaError> {
+    let mut decoder = minimp3::Decoder::new(std::io::Cursor::new(file_data));
     let mut pcm_data = Vec::new();
     let mut sample_rate = 44100;
     let mut channels = 2;
     
-    // Decode all frames
     loop {
         match decoder.next_frame() {
             Ok(frame) => {
@@ -345,22 +379,141 @@ async fn load_mp3_file_with_format(filename: &str) -> Result<(Vec<u8>, u32, u16)
     }
     
     if pcm_data.is_empty() {
-        return Err(MediaError::DecodeError("No audio data decoded".to_string()));
+        return Err(MediaError::DecodeError("No MP3 audio data decoded".to_string()));
     }
     
-    // Calculate and display audio info
-    let file_size_kb = file_data.len() as f64 / 1024.0;
-    let pcm_size_kb = pcm_data.len() as f64 / 1024.0;
-    let duration = pcm_data.len() as f64 / (sample_rate as f64 * channels as f64 * 2.0); // 2 bytes per sample
-    let bitrate = (file_size_kb * 8.0) / duration;
+    Ok((pcm_data, sample_rate, channels))
+}
+
+// Decode OGG/Vorbis and other formats using symphonia
+fn decode_with_symphonia(file_data: &[u8]) -> Result<(Vec<u8>, u32, u16), MediaError> {
+    use symphonia::core::audio::{AudioBufferRef, Signal};
+    use symphonia::core::codecs::DecoderOptions;
+    use symphonia::core::formats::FormatOptions;
+    use symphonia::core::io::MediaSourceStream;
+    use symphonia::core::meta::MetadataOptions;
+    use symphonia::core::probe::Hint;
     
-    println!("✅ MP3 Decoded:");
-    println!("   📦 File size: {:.1} KB", file_size_kb);
-    println!("   🔊 PCM size: {:.1} KB", pcm_size_kb);
-    println!("   ⏱️  Duration: {:.1}s", duration);
-    println!("   🎵 Sample rate: {} Hz", sample_rate);
-    println!("   📻 Channels: {}", channels);
-    println!("   📡 Bitrate: {:.0} kbps", bitrate);
+    let file_data_owned = file_data.to_vec();
+    let cursor = std::io::Cursor::new(file_data_owned);
+    let mss = MediaSourceStream::new(Box::new(cursor), Default::default());
+    
+    let mut hint = Hint::new();
+    // Let symphonia probe the format
+    
+    let meta_opts = MetadataOptions::default();
+    let fmt_opts = FormatOptions::default();
+    
+    let probed = symphonia::default::get_probe()
+        .format(&hint, mss, &fmt_opts, &meta_opts)
+        .map_err(|e| MediaError::DecodeError(format!("Format probe failed: {:?}", e)))?;
+    
+    let mut format = probed.format;
+    let track = format
+        .tracks()
+        .iter()
+        .find(|t| t.codec_params.codec != symphonia::core::codecs::CODEC_TYPE_NULL)
+        .ok_or_else(|| MediaError::DecodeError("No supported audio tracks found".to_string()))?;
+    
+    let dec_opts = DecoderOptions::default();
+    let mut decoder = symphonia::default::get_codecs()
+        .make(&track.codec_params, &dec_opts)
+        .map_err(|e| MediaError::DecodeError(format!("Decoder creation failed: {:?}", e)))?;
+    
+    let track_id = track.id;
+    let mut pcm_data = Vec::new();
+    let mut sample_rate = 44100;
+    let mut channels = 2;
+    
+    // Decode all packets
+    loop {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+            Err(symphonia::core::errors::Error::ResetRequired) => {
+                // The track list has been changed. Re-examine it and create a new set of decoders,
+                // then restart the decode loop. This is an advanced feature that most programs
+                // will never encounter.
+                unimplemented!();
+            }
+            Err(symphonia::core::errors::Error::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                // End of stream
+                break;
+            }
+            Err(e) => {
+                return Err(MediaError::DecodeError(format!("Packet read error: {:?}", e)));
+            }
+        };
+        
+        // Only decode packets for our track
+        if packet.track_id() != track_id {
+            continue;
+        }
+        
+        match decoder.decode(&packet) {
+            Ok(decoded) => {
+                // Extract sample rate and channel info
+                sample_rate = decoded.spec().rate;
+                channels = decoded.spec().channels.count() as u16;
+                
+                // Convert audio buffer to i16 PCM
+                match decoded {
+                    AudioBufferRef::F32(buf) => {
+                        for &sample in buf.chan(0) {
+                            let sample_i16 = (sample * 32767.0).clamp(-32767.0, 32767.0) as i16;
+                            pcm_data.extend_from_slice(&sample_i16.to_le_bytes());
+                        }
+                        // Handle additional channels if stereo
+                        if buf.spec().channels.count() > 1 {
+                            for &sample in buf.chan(1) {
+                                let sample_i16 = (sample * 32767.0).clamp(-32767.0, 32767.0) as i16;
+                                pcm_data.extend_from_slice(&sample_i16.to_le_bytes());
+                            }
+                        }
+                    }
+                    AudioBufferRef::U16(buf) => {
+                        for &sample in buf.chan(0) {
+                            let sample_i16 = (sample as i32 - 32768) as i16;
+                            pcm_data.extend_from_slice(&sample_i16.to_le_bytes());
+                        }
+                        if buf.spec().channels.count() > 1 {
+                            for &sample in buf.chan(1) {
+                                let sample_i16 = (sample as i32 - 32768) as i16;
+                                pcm_data.extend_from_slice(&sample_i16.to_le_bytes());
+                            }
+                        }
+                    }
+                    AudioBufferRef::S16(buf) => {
+                        for &sample in buf.chan(0) {
+                            pcm_data.extend_from_slice(&sample.to_le_bytes());
+                        }
+                        if buf.spec().channels.count() > 1 {
+                            for &sample in buf.chan(1) {
+                                pcm_data.extend_from_slice(&sample.to_le_bytes());
+                            }
+                        }
+                    }
+                    _ => {
+                        return Err(MediaError::DecodeError("Unsupported audio format".to_string()));
+                    }
+                }
+            }
+            Err(symphonia::core::errors::Error::IoError(_)) => {
+                // End of stream
+                break;
+            }
+            Err(symphonia::core::errors::Error::DecodeError(_)) => {
+                // Decode error, try to continue
+                continue;
+            }
+            Err(e) => {
+                return Err(MediaError::DecodeError(format!("Decode error: {:?}", e)));
+            }
+        }
+    }
+    
+    if pcm_data.is_empty() {
+        return Err(MediaError::DecodeError("No audio data decoded".to_string()));
+    }
     
     Ok((pcm_data, sample_rate, channels))
 }
