@@ -156,6 +156,10 @@ async fn handle_connection(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let conn = conn.await?;
     
+    // Get peer's ID52 for logging and security
+    let peer_key = fastn_net::get_remote_id52(&conn).await?;
+    tracing::debug!("Connection established with peer: {}", peer_key.id52());
+    
     loop {
         // Accept bidirectional stream - accept fastn-p2p protocol
         let (protocol, mut send_stream, mut recv_stream) = 
@@ -203,13 +207,15 @@ async fn handle_connection(
         let handler = match handlers.get(&protocol_json) {
             Some(handler) => handler,
             None => {
-                tracing::warn!("No handler for protocol: {:?}", protocol_json);
+                tracing::warn!("No handler for protocol {:?} from peer {}", protocol_json, peer_key.id52());
                 let error_msg = format!("No handler for protocol: {:?}", protocol_json);
                 send_stream.write_all(error_msg.as_bytes()).await?;
                 send_stream.write_all(b"\n").await?;
                 continue;
             }
         };
+        
+        tracing::debug!("Handling protocol {:?} from peer {}", protocol_json, peer_key.id52());
         
         // Convert data back to JSON string for handler
         let request_json = serde_json::to_string(&data_json).unwrap_or_else(|e| {
@@ -219,12 +225,35 @@ async fn handle_connection(
         // Call handler
         let response_json = handler(request_json).await;
         
-        // Send response
-        send_stream.write_all(response_json.as_bytes()).await?;
-        send_stream.write_all(b"\n").await?;
+        // Send response (with safety check in case handler tries to send multiple)
+        match send_response(&mut send_stream, &response_json, &peer_key, &protocol_json).await {
+            Ok(_) => {
+                tracing::debug!("Successfully sent response to peer {}", peer_key.id52());
+            }
+            Err(e) => {
+                tracing::error!("Failed to send response to peer {}: {}", peer_key.id52(), e);
+            }
+        }
         
         break; // One request per connection for now
     }
+    
+    Ok(())
+}
+
+/// Send response with proper error handling and logging
+async fn send_response(
+    send_stream: &mut iroh::endpoint::SendStream,
+    response_json: &str,
+    peer_key: &fastn_id52::PublicKey,
+    protocol_json: &serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Send JSON followed by newline (same format as original)
+    send_stream.write_all(response_json.as_bytes()).await?;
+    send_stream.write_all(b"\n").await?;
+    
+    tracing::trace!("Sent response for protocol {:?} to peer {}: {} bytes", 
+                   protocol_json, peer_key.id52(), response_json.len());
     
     Ok(())
 }
