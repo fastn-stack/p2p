@@ -7,22 +7,40 @@
 
 # Parse command line arguments
 QUIET_MODE=false
+RETRY_ON_DISCOVERY=false
 
 for arg in "$@"; do
     case $arg in
-        --quiet)
+        --quiet|-q)
             QUIET_MODE=true
+            ;;
+        --retry)
+            RETRY_ON_DISCOVERY=true
+            if [ "$QUIET_MODE" = false ]; then
+                echo "Note: Retry mode enabled for discovery issues"
+            fi
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--quiet|-q] [--retry]"
+            echo "  --quiet, -q  Minimal output (only show results and performance)"
+            echo "  --retry      Enable retry on discovery failures"
+            echo "  --help, -h   Show this help message"
+            exit 0
+            ;;
+        -*)
+            echo "Error: Unknown option $arg"
+            echo "Usage: $0 [--quiet|-q] [--retry]"
+            exit 1
+            ;;
+        *)
+            echo "Error: Unexpected argument $arg"
+            echo "Usage: $0 [--quiet|-q] [--retry]"
+            exit 1
             ;;
     esac
 done
-set -e
 
-# Check for retry flag
-RETRY_ON_DISCOVERY=false
-if [[ "$1" == "--retry" ]]; then
-    RETRY_ON_DISCOVERY=true
-    echo "Note: Retry mode enabled for discovery issues"
-fi
+set -e
 
 # Colors for output
 RED='\033[0;31m'

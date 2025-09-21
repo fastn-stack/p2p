@@ -10,8 +10,24 @@ QUIET_MODE=false
 
 for arg in "$@"; do
     case $arg in
-        --quiet)
+        --quiet|-q)
             QUIET_MODE=true
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--quiet|-q]"
+            echo "  --quiet, -q  Minimal output (only show results and performance)"
+            echo "  --help, -h   Show this help message"
+            exit 0
+            ;;
+        -*)
+            echo "Error: Unknown option $arg"
+            echo "Usage: $0 [--quiet|-q]"
+            exit 1
+            ;;
+        *)
+            echo "Error: Unexpected argument $arg"
+            echo "Usage: $0 [--quiet|-q]"
+            exit 1
             ;;
     esac
 done
