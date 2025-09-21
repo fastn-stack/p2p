@@ -126,3 +126,6 @@ pub fn parse_cli() -> Result<ParsedMode, Box<dyn std::error::Error>> {
 // Clean re-exports for examples
 pub use ParsedMode::Client;
 pub use ParsedMode::Server;
+
+// Audio decoding module (shared between audio_test and streaming)
+pub mod audio_decoder;
