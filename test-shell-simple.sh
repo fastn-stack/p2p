@@ -30,6 +30,7 @@ echo ""
 
 # Start daemon
 echo -e "${YELLOW}🚀 Starting shell daemon...${NC}"
+TEST_START_TIME=$(date +%s)
 ./target/release/shell_simple daemon > daemon.log 2>&1 &
 DAEMON_PID=$!
 
@@ -52,6 +53,10 @@ echo "Waiting for discovery services to register daemon..."
 sleep 3
 echo ""
 
+# Initialize metrics tracking
+TOTAL_COMMANDS=0
+TOTAL_LATENCY_NS=0
+
 # Function to test a command
 test_command() {
     local cmd="$1"
@@ -61,7 +66,13 @@ test_command() {
     echo -e "${YELLOW}📤 Test: $description${NC}"
     echo "   Command: $cmd"
     
+    START_TIME=$(date +%s%N)
     OUTPUT=$(./target/release/shell_simple exec "$DAEMON_ID" $cmd 2>&1 || true)
+    END_TIME=$(date +%s%N)
+    CMD_LATENCY_NS=$((END_TIME - START_TIME))
+    CMD_LATENCY_MS=$(echo "scale=2; $CMD_LATENCY_NS / 1000000" | bc)
+    TOTAL_LATENCY_NS=$((TOTAL_LATENCY_NS + CMD_LATENCY_NS))
+    ((TOTAL_COMMANDS++))
     
     # Retry only if flag is set and discovery fails
     if [[ "$RETRY_ON_DISCOVERY" == true ]] && echo "$OUTPUT" | grep -q "Discovery"; then
@@ -71,7 +82,7 @@ test_command() {
     fi
     
     if echo "$OUTPUT" | grep -q "$expected"; then
-        echo -e "${GREEN}✅ Success: Got expected output${NC}"
+        echo -e "${GREEN}✅ Success: Got expected output (${CMD_LATENCY_MS}ms)${NC}"
         echo "   Output: $(echo "$OUTPUT" | head -1)"
     else
         echo -e "${RED}❌ Failed: Unexpected output${NC}"
@@ -110,3 +121,12 @@ kill $DAEMON_PID 2>/dev/null || true
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}🎉 Shell simple tests completed!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# Performance Summary
+if [ $TOTAL_COMMANDS -gt 0 ]; then
+    AVG_LATENCY_MS=$(echo "scale=2; $TOTAL_LATENCY_NS / $TOTAL_COMMANDS / 1000000" | bc)
+    echo -e "\n${YELLOW}📊 Performance Metrics:${NC}"
+    echo "  • Commands executed: $TOTAL_COMMANDS"
+    echo "  • Average command latency: ${AVG_LATENCY_MS}ms"
+    echo "  • Total test duration: $(($(date +%s) - TEST_START_TIME))s"
+fi

@@ -54,6 +54,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # Start the server in the background (using compiled binary directly)
 echo -e "\n${YELLOW}🚀 Starting server...${NC}"
+TEST_START_TIME=$(date +%s)
 ./target/release/request_response server > server.log 2>&1 &
 SERVER_PID=$!
 
@@ -92,7 +93,11 @@ sleep 3
 
 # Test 1: Send a simple message
 echo -e "\n${YELLOW}📤 Test 1: Sending 'Hello P2P!' message...${NC}"
+START_TIME=$(date +%s%N)
 OUTPUT=$(./target/release/request_response client "$SERVER_ID52" "Hello P2P!" 2>&1 | tail -5)
+END_TIME=$(date +%s%N)
+LATENCY_NS=$((END_TIME - START_TIME))
+LATENCY_MS=$(echo "scale=2; $LATENCY_NS / 1000000" | bc)
 
 # Retry only if flag is set and discovery fails
 if [[ "$RETRY_ON_DISCOVERY" == true ]] && echo "$OUTPUT" | grep -q "Discovery"; then
@@ -102,7 +107,7 @@ if [[ "$RETRY_ON_DISCOVERY" == true ]] && echo "$OUTPUT" | grep -q "Discovery"; 
 fi
 
 if echo "$OUTPUT" | grep -q "✅ Response: Echo: Hello P2P!"; then
-    echo -e "${GREEN}✅ Test 1 passed: Got expected echo response${NC}"
+    echo -e "${GREEN}✅ Test 1 passed: Got expected echo response (latency: ${LATENCY_MS}ms)${NC}"
 else
     echo -e "${RED}❌ Test 1 failed: Unexpected response${NC}"
     echo "Output was:"
@@ -112,7 +117,11 @@ fi
 
 # Test 2: Send a different message
 echo -e "\n${YELLOW}📤 Test 2: Sending 'Testing 123' message...${NC}"
+START_TIME=$(date +%s%N)
 OUTPUT=$(./target/release/request_response client "$SERVER_ID52" "Testing 123" 2>&1 | tail -5)
+END_TIME=$(date +%s%N)
+LATENCY2_NS=$((END_TIME - START_TIME))
+LATENCY2_MS=$(echo "scale=2; $LATENCY2_NS / 1000000" | bc)
 
 # Retry only if flag is set and discovery fails
 if [[ "$RETRY_ON_DISCOVERY" == true ]] && echo "$OUTPUT" | grep -q "Discovery"; then
@@ -122,7 +131,7 @@ if [[ "$RETRY_ON_DISCOVERY" == true ]] && echo "$OUTPUT" | grep -q "Discovery"; 
 fi
 
 if echo "$OUTPUT" | grep -q "✅ Response: Echo: Testing 123"; then
-    echo -e "${GREEN}✅ Test 2 passed: Got expected echo response${NC}"
+    echo -e "${GREEN}✅ Test 2 passed: Got expected echo response (latency: ${LATENCY2_MS}ms)${NC}"
 else
     echo -e "${RED}❌ Test 2 failed: Unexpected response${NC}"
     echo "Output was:"
@@ -133,18 +142,25 @@ fi
 # Test 3: Multiple rapid requests
 echo -e "\n${YELLOW}📤 Test 3: Sending multiple rapid requests...${NC}"
 SUCCESS_COUNT=0
+TOTAL_LATENCY_NS=0
 for i in {1..5}; do
+    START_TIME=$(date +%s%N)
     OUTPUT=$(./target/release/request_response client "$SERVER_ID52" "Message $i" 2>&1 | tail -5)
+    END_TIME=$(date +%s%N)
+    REQ_LATENCY_NS=$((END_TIME - START_TIME))
+    REQ_LATENCY_MS=$(echo "scale=2; $REQ_LATENCY_NS / 1000000" | bc)
+    TOTAL_LATENCY_NS=$((TOTAL_LATENCY_NS + REQ_LATENCY_NS))
     if echo "$OUTPUT" | grep -q "✅ Response: Echo: Message $i"; then
-        echo -e "  ${GREEN}✓ Request $i successful${NC}"
+        echo -e "  ${GREEN}✓ Request $i successful (${REQ_LATENCY_MS}ms)${NC}"
         ((SUCCESS_COUNT++))
     else
         echo -e "  ${RED}✗ Request $i failed${NC}"
     fi
 done
+AVG_LATENCY_MS=$(echo "scale=2; $TOTAL_LATENCY_NS / 5000000" | bc)
 
 if [ $SUCCESS_COUNT -eq 5 ]; then
-    echo -e "${GREEN}✅ Test 3 passed: All 5 requests successful${NC}"
+    echo -e "${GREEN}✅ Test 3 passed: All 5 requests successful (avg latency: ${AVG_LATENCY_MS}ms)${NC}"
 else
     echo -e "${RED}❌ Test 3 failed: Only $SUCCESS_COUNT/5 requests successful${NC}"
     exit 1
@@ -162,6 +178,12 @@ fi
 echo -e "\n${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}🎉 All tests passed successfully!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# Performance Summary
+echo -e "\n${YELLOW}📊 Performance Metrics:${NC}"
+echo "  • Single request latency: ${LATENCY_MS}ms"
+echo "  • Average latency (5 rapid requests): ${AVG_LATENCY_MS}ms"
+echo "  • Total test duration: $(($(date +%s) - TEST_START_TIME))s"
 echo -e "\n${YELLOW}Server log preview:${NC}"
 tail -10 server.log
 

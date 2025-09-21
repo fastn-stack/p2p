@@ -56,6 +56,7 @@ echo "Created test_file.txt with $(wc -l < test_file.txt) lines, $(wc -c < test_
 
 # Start the file server
 echo -e "\n${YELLOW}🚀 Starting file server...${NC}"
+TEST_START_TIME=$(date +%s)
 ./target/release/file_transfer server > file_server.log 2>&1 &
 SERVER_PID=$!
 
@@ -94,10 +95,16 @@ sleep 3
 
 # Test 1: Download existing file
 echo -e "\n${YELLOW}📥 Test 1: Downloading 'test_file.txt'...${NC}"
+FILE_SIZE=$(wc -c < test_file.txt)
+START_TIME=$(date +%s%N)
 OUTPUT=$(./target/release/file_transfer client "$SERVER_ID52" "test_file.txt" 2>&1)
+END_TIME=$(date +%s%N)
+TRANSFER_TIME_NS=$((END_TIME - START_TIME))
+TRANSFER_TIME_MS=$(echo "scale=2; $TRANSFER_TIME_NS / 1000000" | bc)
+THROUGHPUT=$(echo "scale=2; $FILE_SIZE * 8 / ($TRANSFER_TIME_NS / 1000000000)" | bc)
 
 if echo "$OUTPUT" | grep -q "✅ Downloaded test_file.txt"; then
-    echo -e "${GREEN}✅ Download completed${NC}"
+    echo -e "${GREEN}✅ Download completed (${TRANSFER_TIME_MS}ms, ${FILE_SIZE} bytes)${NC}"
     
     # Verify the downloaded file exists and has correct content
     if [ -f "downloaded_test_file.txt" ]; then
@@ -152,16 +159,22 @@ fi
 echo -e "\n${YELLOW}📥 Test 4: Testing with larger file...${NC}"
 # Create a 1MB test file
 dd if=/dev/urandom of=large_test.txt bs=1024 count=1024 2>/dev/null
-echo "Created large_test.txt ($(wc -c < large_test.txt) bytes)"
+LARGE_FILE_SIZE=$(wc -c < large_test.txt)
+echo "Created large_test.txt ($LARGE_FILE_SIZE bytes)"
 
+START_TIME=$(date +%s%N)
 OUTPUT=$(./target/release/file_transfer client "$SERVER_ID52" "large_test.txt" 2>&1)
+END_TIME=$(date +%s%N)
+LARGE_TRANSFER_TIME_NS=$((END_TIME - START_TIME))
+LARGE_TRANSFER_TIME_MS=$(echo "scale=2; $LARGE_TRANSFER_TIME_NS / 1000000" | bc)
+LARGE_THROUGHPUT_MBPS=$(echo "scale=2; $LARGE_FILE_SIZE * 8 / ($LARGE_TRANSFER_TIME_NS / 1000)" | bc)
 
 if echo "$OUTPUT" | grep -q "✅ Downloaded large_test.txt"; then
     if [ -f "downloaded_large_test.txt" ]; then
         ORIGINAL_SIZE=$(wc -c < large_test.txt)
         DOWNLOADED_SIZE=$(wc -c < downloaded_large_test.txt)
         if [ "$ORIGINAL_SIZE" -eq "$DOWNLOADED_SIZE" ]; then
-            echo -e "${GREEN}✅ Test 4 passed: Large file transferred correctly (${ORIGINAL_SIZE} bytes)${NC}"
+            echo -e "${GREEN}✅ Test 4 passed: Large file transferred correctly (${ORIGINAL_SIZE} bytes in ${LARGE_TRANSFER_TIME_MS}ms, ${LARGE_THROUGHPUT_MBPS} Mbps)${NC}"
         else
             echo -e "${RED}❌ Test 4 failed: Size mismatch (original: ${ORIGINAL_SIZE}, downloaded: ${DOWNLOADED_SIZE})${NC}"
             exit 1
@@ -192,6 +205,12 @@ fi
 echo -e "\n${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}🎉 All file transfer tests passed!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# Performance Summary
+echo -e "\n${YELLOW}📊 Performance Metrics:${NC}"
+echo "  • Small file (${FILE_SIZE}B) transfer: ${TRANSFER_TIME_MS}ms"
+echo "  • Large file (1MB) transfer: ${LARGE_TRANSFER_TIME_MS}ms (${LARGE_THROUGHPUT_MBPS} Mbps)"
+echo "  • Total test duration: $(($(date +%s) - TEST_START_TIME))s"
 echo -e "\n${YELLOW}Server log preview:${NC}"
 tail -10 file_server.log
 
