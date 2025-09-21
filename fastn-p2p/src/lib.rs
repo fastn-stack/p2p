@@ -33,6 +33,7 @@ extern crate self as fastn_p2p;
 
 mod coordination;
 mod globals;
+mod handshake;
 mod macros;
 
 // Export client and server modules (new modular API)

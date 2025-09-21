@@ -253,6 +253,7 @@ async fn run_server(
     connection_auth: Option<ConnectionAuthHook>,
     stream_auth: Option<StreamAuthHook>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let server_public_key = private_key.public_key();
     // Get endpoint for listening
     let endpoint = fastn_net::get_endpoint(private_key).await?;
     
@@ -281,9 +282,11 @@ async fn run_server(
                 let stream_handlers = stream_handlers.clone();
                 let connection_auth = connection_auth.clone();
                 let stream_auth = stream_auth.clone();
+                let server_key = server_public_key.clone();
                 crate::spawn(async move {
                     if let Err(e) = handle_connection(
                         conn, 
+                        server_key,
                         &request_handlers, 
                         &stream_handlers, 
                         connection_auth.as_deref(),
@@ -308,6 +311,7 @@ struct WrapperRequest {
 
 async fn handle_connection(
     conn: iroh::endpoint::Incoming,
+    server_key: fastn_id52::PublicKey,
     request_handlers: &std::collections::HashMap<serde_json::Value, RequestHandler>,
     stream_handlers: &std::collections::HashMap<serde_json::Value, StreamHandler>,
     connection_auth: Option<&ConnectionAuthHook>,
@@ -319,16 +323,95 @@ async fn handle_connection(
     let peer_key = fastn_net::get_remote_id52(&conn).await?;
     tracing::debug!("Connection established with peer: {}", peer_key.id52());
     
-    // Check connection-level authorization
+    // HANDSHAKE: Wait for the first stream which MUST be the handshake
+    let (protocol, mut send_stream, mut recv_stream) = 
+        fastn_net::accept_bi(&conn, &[fastn_net::Protocol::Generic(
+            serde_json::Value::String(crate::handshake::HANDSHAKE_PROTOCOL.to_string())
+        )]).await?;
+    
+    // Verify it's the handshake protocol
+    match protocol {
+        fastn_net::Protocol::Generic(json)
+            if json == serde_json::Value::String(crate::handshake::HANDSHAKE_PROTOCOL.to_string()) => {
+            // Good, this is handshake
+        }
+        other => {
+            tracing::warn!("First stream was not handshake: {:?}", other);
+            conn.close(0u8.into(), b"Handshake required");
+            return Ok(());
+        }
+    };
+    
+    // Read ClientHello
+    let client_hello: crate::handshake::ClientHello = match fastn_net::next_json(&mut recv_stream).await {
+        Ok(hello) => hello,
+        Err(e) => {
+            tracing::warn!("Failed to read ClientHello: {}", e);
+            conn.close(0u8.into(), b"Invalid handshake");
+            return Ok(());
+        }
+    };
+    
+    tracing::debug!("Received ClientHello from {} ({}): {} protocols supported", 
+                   client_hello.client_name, client_hello.client_version, 
+                   client_hello.supported_protocols.len());
+    
+    // Check connection-level authorization with client info
     if let Some(auth) = connection_auth {
         if !auth(&peer_key) {
             tracing::warn!("Connection denied for peer {}", peer_key.id52());
-            // Close connection immediately
+            let response = crate::handshake::ServerHello::failure(
+                crate::handshake::HandshakeError::Unauthorized
+            );
+            let json = serde_json::to_string(&response)?;
+            send_stream.write_all(json.as_bytes()).await?;
+            send_stream.write_all(b"\n").await?;
+            send_stream.finish()?;
             conn.close(0u8.into(), b"Unauthorized");
             return Ok(());
         }
     }
     
+    // Filter protocols - only include ones we actually support
+    let mut accepted_protocols = Vec::new();
+    for protocol in &client_hello.supported_protocols {
+        if request_handlers.contains_key(protocol) || stream_handlers.contains_key(protocol) {
+            accepted_protocols.push(protocol.clone());
+        }
+    }
+    
+    // Send ServerHello
+    let server_hello = if !accepted_protocols.is_empty() {
+        let mut hello = crate::handshake::ServerHello::success();
+        if let crate::handshake::ServerHello::Success { accepted_protocols: ref mut protocols, .. } = hello {
+            *protocols = accepted_protocols;
+        }
+        hello
+    } else {
+        crate::handshake::ServerHello::failure(
+            crate::handshake::HandshakeError::NoCommonProtocols
+        )
+    };
+    
+    let json = serde_json::to_string(&server_hello)?;
+    send_stream.write_all(json.as_bytes()).await?;
+    send_stream.write_all(b"\n").await?;
+    send_stream.finish()?;
+    
+    if matches!(server_hello, crate::handshake::ServerHello::Failure { .. }) {
+        conn.close(0u8.into(), b"No compatible protocols");
+        return Ok(());
+    }
+    
+    let protocol_count = if let crate::handshake::ServerHello::Success { ref accepted_protocols, .. } = server_hello {
+        accepted_protocols.len()
+    } else {
+        0
+    };
+    tracing::info!("Handshake complete with {} - {} protocols enabled", 
+                  client_hello.client_name, protocol_count);
+    
+    // Now we can accept application protocol streams
     loop {
         // Accept bidirectional stream - accept fastn-p2p protocol
         let (protocol, mut send_stream, mut recv_stream) = 

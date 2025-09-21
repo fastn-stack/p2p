@@ -58,24 +58,108 @@ where
     OUTPUT: for<'de> serde::Deserialize<'de>,
     ERROR: for<'de> serde::Deserialize<'de>,
 {
-    // Use hardcoded fastn-p2p protocol for all requests
-    let net_protocol = fastn_net::Protocol::Generic(serde_json::Value::String("fastn-p2p".to_string()));
-
-    // Get endpoint for the sender
-    let endpoint = fastn_net::get_endpoint(sender)
+    // First establish connection and do handshake
+    let endpoint = fastn_net::get_endpoint(sender.clone())
         .await
         .map_err(|source| CallError::Endpoint { source })?;
-
-    // Establish P2P stream using singletons (graceful access localized to this module)
-    let (mut send_stream, mut recv_stream) = fastn_net::get_stream(
-        endpoint,
-        net_protocol.into(),
-        target,
-        crate::pool(),
-        GRACEFUL.clone(), // ONLY access to graceful singleton in entire codebase
-    )
-    .await
-    .map_err(|source| CallError::Stream { source })?;
+    
+    // Connect to target
+    let target_node_id = iroh::NodeId::from(
+        iroh::PublicKey::from_bytes(&target.to_bytes())
+            .map_err(|e| CallError::Stream { source: eyre::Error::from(e) })?
+    );
+    let conn = endpoint.connect(target_node_id, &fastn_net::APNS_IDENTITY)
+        .await
+        .map_err(|e| CallError::Stream { source: eyre::Error::from(e) })?;
+    
+    // Send handshake first
+    let handshake_protocol = fastn_net::Protocol::Generic(
+        serde_json::Value::String(crate::handshake::HANDSHAKE_PROTOCOL.to_string())
+    );
+    
+    let (mut hs_send, mut hs_recv) = conn.open_bi().await
+        .map_err(|e| CallError::Stream { source: eyre::Error::from(e) })?;
+    
+    // Send handshake protocol identifier
+    let protocol_json = serde_json::to_string(&handshake_protocol)
+        .map_err(|source| CallError::Serialization { source })?;
+    hs_send.write_all(protocol_json.as_bytes()).await
+        .map_err(|e| CallError::Send { source: eyre::Error::from(e) })?;
+    hs_send.write_all(b"\n").await
+        .map_err(|e| CallError::Send { source: eyre::Error::from(e) })?;
+    
+    // Wait for ACK
+    let ack = fastn_net::next_string(&mut hs_recv).await
+        .map_err(|source| CallError::Receive { source })?;
+    if ack != fastn_net::ACK {
+        return Err(CallError::Receive { 
+            source: eyre::anyhow!("Expected ACK, got: {}", ack) 
+        });
+    }
+    
+    // Send ClientHello
+    let client_hello = crate::handshake::ClientHello::new(
+        "fastn-p2p-client",
+        env!("CARGO_PKG_VERSION")
+    ).with_protocol(&protocol);
+    
+    let hello_json = serde_json::to_string(&client_hello)
+        .map_err(|source| CallError::Serialization { source })?;
+    hs_send.write_all(hello_json.as_bytes()).await
+        .map_err(|e| CallError::Send { source: eyre::Error::from(e) })?;
+    hs_send.write_all(b"\n").await
+        .map_err(|e| CallError::Send { source: eyre::Error::from(e) })?;
+    
+    // Read ServerHello
+    let server_hello: crate::handshake::ServerHello = fastn_net::next_json(&mut hs_recv).await
+        .map_err(|source| CallError::Receive { source })?;
+    
+    // Check if handshake succeeded
+    let accepted_protocols = match server_hello {
+        crate::handshake::ServerHello::Success { 
+            accepted_protocols, ..
+        } => accepted_protocols,
+        crate::handshake::ServerHello::Failure { code } => {
+            return Err(CallError::Receive { 
+                source: eyre::anyhow!("Server rejected handshake: {:?}", code)
+            });
+        }
+    };
+    
+    // Check if our protocol is accepted
+    let protocol_json = serde_json::to_value(&protocol)
+        .map_err(|e| CallError::Serialization { source: e })?;
+    if !accepted_protocols.contains(&protocol_json) {
+        return Err(CallError::Receive { 
+            source: eyre::anyhow!("Server doesn't support requested protocol")
+        });
+    }
+    
+    hs_send.finish()
+        .map_err(|e| CallError::Send { source: eyre::Error::from(e) })?;
+    
+    // Now open the actual application protocol stream
+    let app_protocol = fastn_net::Protocol::Generic(serde_json::Value::String("fastn-p2p".to_string()));
+    
+    let (mut send_stream, mut recv_stream) = conn.open_bi().await
+        .map_err(|e| CallError::Stream { source: eyre::Error::from(e) })?;
+    
+    // Send app protocol identifier  
+    let app_protocol_json = serde_json::to_string(&app_protocol)
+        .map_err(|source| CallError::Serialization { source })?;
+    send_stream.write_all(app_protocol_json.as_bytes()).await
+        .map_err(|e| CallError::Send { source: eyre::Error::from(e) })?;
+    send_stream.write_all(b"\n").await
+        .map_err(|e| CallError::Send { source: eyre::Error::from(e) })?;
+    
+    // Wait for ACK
+    let ack = fastn_net::next_string(&mut recv_stream).await
+        .map_err(|source| CallError::Receive { source })?;
+    if ack != fastn_net::ACK {
+        return Err(CallError::Receive { 
+            source: eyre::anyhow!("Expected ACK for app protocol, got: {}", ack) 
+        });
+    }
 
     // Convert user protocol to JSON for embedding in request
     let protocol_json =
