@@ -351,13 +351,14 @@ async fn run_subscriber(
     Ok(())
 }
 
+// Global audio data cache to avoid re-decoding for each request
+static AUDIO_CACHE: tokio::sync::OnceCell<(Vec<u8>, u32, u16, f64)> = tokio::sync::OnceCell::const_new();
+
 // Audio request handler - responds to client chunk requests
 async fn audio_request_handler(
     request: StreamRequest,
     audio_file: String,
 ) -> Result<StreamResponse, MediaError> {
-    let handler_start = Instant::now();
-    println!("🔊 New subscriber connected: {}", session.peer().id52());
     
     // Read and decode audio file to get actual audio format
     let decode_start = Instant::now();
