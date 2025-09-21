@@ -20,3 +20,14 @@ Thumbs.db
 
 # Cargo
 Cargo.lock
+
+# Example persistent keys (should not be committed)
+.fastn-*.key
+
+# Test artifacts
+*.log
+*.tmp
+test_audio.mp3
+high_quality_audio.mp3
+downloaded_*.txt
+large_test.txt
