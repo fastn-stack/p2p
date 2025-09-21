@@ -274,10 +274,50 @@ async fn load_mp3_file(filename: &str) -> Result<Vec<u8>, MediaError> {
     let data = tokio::fs::read(filename).await
         .map_err(|_| MediaError::FileNotFound(filename.to_string()))?;
     
-    // For now, just return the raw MP3 data
-    // In a real implementation, you'd decode this to PCM
-    println!("✅ Loaded {} bytes of audio data", data.len());
+    // Calculate and display MP3 info
+    let file_size_kb = data.len() as f64 / 1024.0;
+    let estimated_duration = estimate_mp3_duration(&data);
+    let estimated_bitrate = if estimated_duration > 0.0 {
+        (file_size_kb * 8.0) / estimated_duration
+    } else {
+        0.0
+    };
+    
+    println!("✅ MP3 Info:");
+    println!("   📦 Size: {:.1} KB", file_size_kb);
+    if estimated_duration > 0.0 {
+        println!("   ⏱️  Estimated duration: {:.1}s", estimated_duration);
+        println!("   🎵 Estimated bitrate: {:.0} kbps", estimated_bitrate);
+    }
+    println!("   📡 Will stream as {} KB audio data", file_size_kb);
+    
     Ok(data)
+}
+
+// Simple MP3 duration estimation (very rough)
+fn estimate_mp3_duration(data: &[u8]) -> f64 {
+    // Look for MP3 frame headers to estimate duration
+    // This is a very basic estimation - real MP3 parsing would be more accurate
+    let mut frame_count = 0;
+    let mut i = 0;
+    
+    while i < data.len().saturating_sub(4) {
+        // Look for MP3 frame sync (0xFF followed by 0xE0-0xFF)
+        if data[i] == 0xFF && (data[i + 1] & 0xE0) == 0xE0 {
+            frame_count += 1;
+            i += 4; // Skip frame header
+        } else {
+            i += 1;
+        }
+    }
+    
+    // Very rough estimation: ~38 frames per second for typical MP3
+    if frame_count > 10 {
+        frame_count as f64 / 38.0
+    } else {
+        // Fallback: assume ~128kbps for raw audio data
+        (data.len() as f64 * 8.0) / (128.0 * 1000.0)
+    }
 }
 
 // Create a test audio file (simple sine wave as MP3)
