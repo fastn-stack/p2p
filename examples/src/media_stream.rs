@@ -162,17 +162,14 @@ async fn run_subscriber(
     // Audio playback buffer - larger buffer to reduce jitter
     let (audio_tx, mut audio_rx) = mpsc::channel::<AudioChunk>(1000);
 
-    // Spawn audio player task with proper buffering
+    // Spawn audio player task - let rodio handle buffering naturally  
     let sink = std::sync::Arc::new(sink);
     let sink_clone = sink.clone();
     tokio::spawn(async move {
         while let Some(chunk) = audio_rx.recv().await {
             // Convert raw audio data to playable format
             if let Ok(source) = create_audio_source(chunk) {
-                // Wait for sink to have room before appending
-                while sink_clone.len() > 2 {
-                    tokio::time::sleep(Duration::from_millis(10)).await;
-                }
+                // Simply append - rodio's internal buffering handles the rest
                 sink_clone.append(source);
             }
         }
@@ -686,11 +683,14 @@ fn create_audio_source(chunk: AudioChunk) -> Result<rodio::buffer::SamplesBuffer
         samples
     );
     
-    println!("🎵 Playing chunk {}: {} samples, {}Hz, {} ch", 
-             chunk.sequence, 
-             source.len(),
-             chunk.sample_rate,
-             chunk.channels);
+    // Only print first few chunks to avoid spam
+    if chunk.sequence < 3 {
+        println!("🎵 Playing chunk {}: {} bytes, {}Hz, {} ch", 
+                 chunk.sequence, 
+                 chunk.data.len(),
+                 chunk.sample_rate,
+                 chunk.channels);
+    }
     
     Ok(source)
 }
