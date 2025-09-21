@@ -93,13 +93,13 @@ else
 fi
 
 # Run all test suites
-run_test "Request-Response Pattern" "./test-request-response.sh"
-run_test "File Transfer (Streaming)" "./test-file-transfer.sh"
-if [ -f "./test-shell-simple.sh" ]; then
-    run_test "Remote Shell (Simple)" "./test-shell-simple.sh"
+run_test "Request-Response Pattern" "./scripts/test-request-response.sh"
+run_test "File Transfer (Streaming)" "./scripts/test-file-transfer.sh"
+if [ -f "./scripts/test-shell-simple.sh" ]; then
+    run_test "Remote Shell (Simple)" "./scripts/test-shell-simple.sh"
 fi
-if [ -f "./test-media-stream.sh" ]; then
-    run_test "Media Stream (Audio)" "./test-media-stream.sh"
+if [ -f "./scripts/test-media-stream.sh" ]; then
+    run_test "Media Stream (Audio)" "./scripts/test-media-stream.sh"
 fi
 
 # Summary
