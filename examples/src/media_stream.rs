@@ -339,8 +339,8 @@ async fn audio_publisher_handler(
     let mut stats = StreamStats::default();
     stats.start_time = Some(Instant::now());
     
-    // Stream audio chunks - smaller chunks for continuous playback
-    let chunk_size = 32768; // 32KB chunks for continuous streaming
+    // Stream audio chunks - larger chunks for better efficiency
+    let chunk_size = 262144; // 256KB chunks for efficient streaming
     let mut sequence = 0u64;
     let stream_start = Instant::now();
     
@@ -560,39 +560,40 @@ fn decode_with_symphonia(file_data: &[u8]) -> Result<(Vec<u8>, u32, u16), MediaE
                 sample_rate = decoded.spec().rate;
                 channels = decoded.spec().channels.count() as u16;
                 
-                // Convert audio buffer to i16 PCM
+                // Convert audio buffer to i16 PCM with proper stereo interleaving
                 match decoded {
                     AudioBufferRef::F32(buf) => {
-                        for &sample in buf.chan(0) {
-                            let sample_i16 = (sample * 32767.0).clamp(-32767.0, 32767.0) as i16;
-                            pcm_data.extend_from_slice(&sample_i16.to_le_bytes());
-                        }
-                        // Handle additional channels if stereo
-                        if buf.spec().channels.count() > 1 {
-                            for &sample in buf.chan(1) {
+                        let channels_count = buf.spec().channels.count();
+                        let frames = buf.frames();
+                        
+                        for frame_idx in 0..frames {
+                            // For each frame, interleave all channels properly
+                            for ch in 0..channels_count {
+                                let sample = buf.chan(ch)[frame_idx];
                                 let sample_i16 = (sample * 32767.0).clamp(-32767.0, 32767.0) as i16;
                                 pcm_data.extend_from_slice(&sample_i16.to_le_bytes());
                             }
                         }
                     }
                     AudioBufferRef::U16(buf) => {
-                        for &sample in buf.chan(0) {
-                            let sample_i16 = (sample as i32 - 32768) as i16;
-                            pcm_data.extend_from_slice(&sample_i16.to_le_bytes());
-                        }
-                        if buf.spec().channels.count() > 1 {
-                            for &sample in buf.chan(1) {
+                        let channels_count = buf.spec().channels.count();
+                        let frames = buf.frames();
+                        
+                        for frame_idx in 0..frames {
+                            for ch in 0..channels_count {
+                                let sample = buf.chan(ch)[frame_idx];
                                 let sample_i16 = (sample as i32 - 32768) as i16;
                                 pcm_data.extend_from_slice(&sample_i16.to_le_bytes());
                             }
                         }
                     }
                     AudioBufferRef::S16(buf) => {
-                        for &sample in buf.chan(0) {
-                            pcm_data.extend_from_slice(&sample.to_le_bytes());
-                        }
-                        if buf.spec().channels.count() > 1 {
-                            for &sample in buf.chan(1) {
+                        let channels_count = buf.spec().channels.count();
+                        let frames = buf.frames();
+                        
+                        for frame_idx in 0..frames {
+                            for ch in 0..channels_count {
+                                let sample = buf.chan(ch)[frame_idx];
                                 pcm_data.extend_from_slice(&sample.to_le_bytes());
                             }
                         }
