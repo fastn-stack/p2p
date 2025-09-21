@@ -38,11 +38,56 @@ where
     PROTOCOL: serde::Serialize + for<'de> serde::Deserialize<'de> + std::fmt::Debug,
     DATA: serde::Serialize,
 {
-    // TODO: Implement streaming connection establishment with automatic data sending
-    todo!(
-        "Connect to {target} with protocol {protocol:?} and data, using {}",
-        our_key.id52()
+    // Use hardcoded fastn-p2p protocol for all requests
+    let net_protocol = fastn_net::Protocol::Generic(serde_json::Value::String("fastn-p2p".to_string()));
+
+    // Get endpoint for the sender
+    let endpoint = fastn_net::get_endpoint(our_key)
+        .await
+        .map_err(|source| ConnectionError::Endpoint { source })?;
+
+    // Establish P2P stream
+    let (mut send_stream, mut recv_stream) = fastn_net::get_stream(
+        endpoint,
+        net_protocol.into(),
+        &target,
+        crate::pool(),
+        crate::coordination::GRACEFUL.clone(),
     )
+    .await
+    .map_err(|source| ConnectionError::Stream { source })?;
+
+    // Convert user protocol to JSON for embedding in request
+    let protocol_json =
+        serde_json::to_value(&protocol).map_err(|e| ConnectionError::Serialization { source: e })?;
+
+    // Create wrapper request with protocol and data
+    let wrapper_request = serde_json::json!({
+        "protocol": protocol_json,
+        "data": data
+    });
+    let request_json = serde_json::to_string(&wrapper_request)
+        .map_err(|source| ConnectionError::Serialization { source })?;
+
+    // Send JSON followed by newline
+    send_stream
+        .write_all(request_json.as_bytes())
+        .await
+        .map_err(|e| ConnectionError::Send {
+            source: eyre::Error::from(e),
+        })?;
+    send_stream
+        .write_all(b"\n")
+        .await
+        .map_err(|e| ConnectionError::Send {
+            source: eyre::Error::from(e),
+        })?;
+
+    // Create and return the Session
+    Ok(Session {
+        stdin: send_stream,
+        stdout: recv_stream,
+    })
 }
 
 /// Client-side streaming session
@@ -133,9 +178,18 @@ pub enum CallError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionError {
+    #[error("Failed to get endpoint: {source}")]
+    Endpoint { source: eyre::Error },
+    
     #[error("Failed to establish streaming connection: {source}")]
     Connection { source: eyre::Error },
 
     #[error("Stream error: {source}")]
     Stream { source: eyre::Error },
+    
+    #[error("Serialization error: {source}")]
+    Serialization { source: serde_json::Error },
+    
+    #[error("Failed to send data: {source}")]
+    Send { source: eyre::Error },
 }

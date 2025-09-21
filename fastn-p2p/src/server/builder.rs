@@ -4,6 +4,7 @@
 pub struct ServerBuilder {
     private_key: fastn_id52::SecretKey,
     request_handlers: std::collections::HashMap<serde_json::Value, RequestHandler>,
+    stream_handlers: std::collections::HashMap<serde_json::Value, StreamHandler>,
     server_task: Option<std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error>>> + Send>>>,
 }
 
@@ -13,11 +14,23 @@ type RequestHandler = Box<
         + Sync,
 >;
 
+type StreamHandler = Box<
+    dyn Fn(
+        iroh::endpoint::SendStream,
+        iroh::endpoint::RecvStream,
+        fastn_id52::PublicKey,
+        String,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error>>> + Send>>
+        + Send
+        + Sync,
+>;
+
 impl ServerBuilder {
     pub fn new(private_key: fastn_id52::SecretKey) -> Self {
         Self {
             private_key,
             request_handlers: std::collections::HashMap::new(),
+            stream_handlers: std::collections::HashMap::new(),
             server_task: None,
         }
     }
@@ -70,16 +83,56 @@ impl ServerBuilder {
     }
 
     /// Add a streaming handler for a protocol
-    pub fn handle_streams<P, F, Fut, DATA, STATE, ERROR>(self, _protocol: P, _state: STATE, _handler: F) -> Self
+    pub fn handle_streams<P, F, Fut, DATA, STATE, ERROR>(mut self, protocol: P, state: STATE, handler: F) -> Self
     where
-        P: serde::Serialize + std::fmt::Debug,
-        DATA: serde::de::DeserializeOwned,
+        P: serde::Serialize + for<'de> serde::Deserialize<'de> + std::fmt::Debug + Clone + Send + Sync + 'static,
+        DATA: serde::de::DeserializeOwned + Send + 'static,
         STATE: Clone + Send + Sync + 'static,
         F: Fn(crate::server::Session<P>, DATA, STATE) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = Result<(), ERROR>> + Send,
+        Fut: std::future::Future<Output = Result<(), ERROR>> + Send + 'static,
         ERROR: std::error::Error + Send + Sync + 'static,
     {
-        // TODO: Store the handler for protocol dispatch with automatic data extraction and state cloning
+        // Convert protocol to JSON value for lookup
+        let protocol_key = serde_json::to_value(&protocol)
+            .expect("Protocol must be serializable");
+
+        // Create a type-erased stream handler
+        let boxed_handler: StreamHandler = {
+            let handler = std::sync::Arc::new(handler);
+            let state = std::sync::Arc::new(state);
+            let protocol = protocol.clone();
+            Box::new(move |send, recv, peer, data_json: String| {
+                let handler = handler.clone();
+                let state = state.clone();
+                let protocol = protocol.clone();
+                Box::pin(async move {
+                    // Deserialize the initial data
+                    let data: DATA = match serde_json::from_str(&data_json) {
+                        Ok(data) => data,
+                        Err(e) => {
+                            return Err(Box::new(e) as Box<dyn std::error::Error>);
+                        }
+                    };
+                    
+                    // Create the session
+                    let session = crate::server::Session {
+                        protocol: protocol.clone(),
+                        send,
+                        recv,
+                        peer,
+                        context: fastn_context::Context::new("stream"),
+                    };
+                    
+                    // Call the handler with session, data, and state
+                    match handler(session, data, (*state).clone()).await {
+                        Ok(()) => Ok(()),
+                        Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
+                    }
+                })
+            })
+        };
+
+        self.stream_handlers.insert(protocol_key, boxed_handler);
         self
     }
 }
@@ -95,12 +148,13 @@ impl std::future::Future for ServerBuilder {
         // If we haven't created the server task yet, create it
         if self.server_task.is_none() {
             let private_key = self.private_key.clone();
-            let handlers = std::mem::take(&mut self.request_handlers);
+            let request_handlers = std::mem::take(&mut self.request_handlers);
+            let stream_handlers = std::mem::take(&mut self.stream_handlers);
             
             println!("🎧 Server listening on: {}", private_key.id52());
             
             // Create the server future
-            self.server_task = Some(Box::pin(run_server(private_key, handlers)));
+            self.server_task = Some(Box::pin(run_server(private_key, request_handlers, stream_handlers)));
         }
         
         // Poll the server task
@@ -114,13 +168,15 @@ impl std::future::Future for ServerBuilder {
 
 async fn run_server(
     private_key: fastn_id52::SecretKey,
-    handlers: std::collections::HashMap<serde_json::Value, RequestHandler>,
+    request_handlers: std::collections::HashMap<serde_json::Value, RequestHandler>,
+    stream_handlers: std::collections::HashMap<serde_json::Value, StreamHandler>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Get endpoint for listening
     let endpoint = fastn_net::get_endpoint(private_key).await?;
     
     // Wrap handlers in Arc for sharing across tasks
-    let handlers = std::sync::Arc::new(handlers);
+    let request_handlers = std::sync::Arc::new(request_handlers);
+    let stream_handlers = std::sync::Arc::new(stream_handlers);
     
     loop {
         tokio::select! {
@@ -137,9 +193,10 @@ async fn run_server(
                     }
                 };
                 
-                let handlers = handlers.clone();
+                let request_handlers = request_handlers.clone();
+                let stream_handlers = stream_handlers.clone();
                 crate::spawn(async move {
-                    if let Err(e) = handle_connection(conn, &handlers).await {
+                    if let Err(e) = handle_connection(conn, &request_handlers, &stream_handlers).await {
                         tracing::error!("Connection error: {}", e);
                     }
                 });
@@ -159,7 +216,8 @@ struct WrapperRequest {
 
 async fn handle_connection(
     conn: iroh::endpoint::Incoming,
-    handlers: &std::collections::HashMap<serde_json::Value, RequestHandler>,
+    request_handlers: &std::collections::HashMap<serde_json::Value, RequestHandler>,
+    stream_handlers: &std::collections::HashMap<serde_json::Value, StreamHandler>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let conn = conn.await?;
     
@@ -168,12 +226,9 @@ async fn handle_connection(
     tracing::debug!("Connection established with peer: {}", peer_key.id52());
     
     loop {
-        tracing::debug!("Waiting to accept bidirectional stream");
         // Accept bidirectional stream - accept fastn-p2p protocol
         let (protocol, mut send_stream, mut recv_stream) = 
             fastn_net::accept_bi(&conn, &[fastn_net::Protocol::Generic(serde_json::Value::String("fastn-p2p".to_string()))]).await?;
-        
-        tracing::debug!("Accepted stream with protocol: {:?}", protocol);
             
         // Verify this is fastn-p2p protocol
         match protocol {
@@ -198,52 +253,61 @@ async fn handle_connection(
             }
         };
         
-        // Find handler for this protocol
-        let handler = match handlers.get(&wrapper.protocol) {
-            Some(handler) => handler,
-            None => {
-                tracing::warn!("No handler for protocol {:?} from peer {}", wrapper.protocol, peer_key.id52());
-                let error_msg = format!("No handler for protocol: {:?}", wrapper.protocol);
-                send_stream.write_all(error_msg.as_bytes()).await?;
-                send_stream.write_all(b"\n").await?;
-                continue;
-            }
-        };
+        // Check if it's a streaming or request handler
+        let is_streaming = stream_handlers.contains_key(&wrapper.protocol);
+        let is_request = request_handlers.contains_key(&wrapper.protocol);
         
-        tracing::debug!("Handling protocol {:?} from peer {}", wrapper.protocol, peer_key.id52());
+        if !is_streaming && !is_request {
+            tracing::warn!("No handler for protocol {:?} from peer {}", wrapper.protocol, peer_key.id52());
+            let error_msg = format!("No handler for protocol: {:?}", wrapper.protocol);
+            send_stream.write_all(error_msg.as_bytes()).await?;
+            send_stream.write_all(b"\n").await?;
+            continue;
+        }
         
-        // Convert data back to JSON string for handler
-        let request_json = serde_json::to_string(&wrapper.data).unwrap_or_else(|e| {
+        // Convert data back to JSON string
+        let data_json = serde_json::to_string(&wrapper.data).unwrap_or_else(|e| {
             format!("Failed to serialize data: {}", e)
         });
         
-        // Call handler
-        tracing::debug!("Calling handler for protocol {:?}", wrapper.protocol);
-        let response_json = handler(request_json).await;
-        tracing::debug!("Handler returned response: {} bytes", response_json.len());
-        
-        // Send response (with safety check in case handler tries to send multiple)
-        tracing::debug!("Sending response to peer {}", peer_key.id52());
-        match send_response(&mut send_stream, &response_json, &peer_key, &wrapper.protocol).await {
-            Ok(_) => {
-                tracing::debug!("Successfully sent response to peer {}", peer_key.id52());
+        if is_streaming {
+            // Handle streaming protocol
+            let handler = stream_handlers.get(&wrapper.protocol).unwrap();
+            
+            // Call the streaming handler with the streams
+            match handler(send_stream, recv_stream, peer_key.clone(), data_json).await {
+                Ok(()) => {
+                    // Streaming completed successfully
+                }
+                Err(e) => {
+                    tracing::error!("Streaming handler error: {}", e);
+                }
             }
-            Err(e) => {
-                tracing::error!("Failed to send response to peer {}: {}", peer_key.id52(), e);
-                break;
+            // For streaming, the handler manages the streams, so we're done
+        } else {
+            // Handle request/response protocol
+            let handler = request_handlers.get(&wrapper.protocol).unwrap();
+            
+            let response_json = handler(data_json).await;
+            
+            // Send response
+            match send_response(&mut send_stream, &response_json, &peer_key, &wrapper.protocol).await {
+                Ok(_) => {
+                    // Response sent successfully
+                }
+                Err(e) => {
+                    tracing::error!("Failed to send response to peer {}: {}", peer_key.id52(), e);
+                    break;
+                }
             }
+            
+            // Signal that we're done sending by calling finish()
+            // This tells the client no more data will be sent on this stream
+            send_stream.finish()?;
         }
         
-        // Signal that we're done sending by calling finish()
-        // This tells the client no more data will be sent on this stream
-        send_stream.finish()?;
-        tracing::debug!("Closed send stream");
-        
         // Keep the connection alive by continuing to accept streams
-        // Even though we only handle one request, staying in the loop
-        // prevents the connection from being dropped prematurely
         // We'll break when accept_bi fails (client closes connection)
-        tracing::debug!("Request handled, waiting for more or connection close");
     }
     
     Ok(())

@@ -7,9 +7,9 @@ pub struct Session<PROTOCOL> {
     /// Stream from client (stdin)  
     pub recv: iroh::endpoint::RecvStream,
     /// Peer's public key
-    peer: fastn_id52::PublicKey,
+    pub peer: fastn_id52::PublicKey,
     /// Context for this session (integration with fastn-context)
-    context: std::sync::Arc<fastn_context::Context>,
+    pub context: std::sync::Arc<fastn_context::Context>,
 }
 
 impl<PROTOCOL> Session<PROTOCOL> {
