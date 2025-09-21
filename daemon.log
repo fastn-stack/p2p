@@ -1,8 +1,8 @@
-🐚 Shell daemon listening on: v3lfivfe18575606uh5u0upojbt7u4t537uoojjughpcagisu9ig
+🐚 Shell daemon listening on: dls8rlvcut7tfjkkngiluit5dok4rpn19kddv2m17vjvecbc0afg
 ⚠️  WARNING: This allows remote command execution!
-🎧 Server listening on: v3lfivfe18575606uh5u0upojbt7u4t537uoojjughpcagisu9ig
-🔧 Executing: echo ["Hello_P2P"] for d5nksrkr8namjfc3nck1qis595dg2kgchk1qbb526iccvqnebqj0
-🔧 Executing: ls ["target"] for 05uimtrnjq33o8knb8a6n9mncn3bhhr9p8phveh95teqjk296ig0
-🔧 Executing: date [] for tjo8b8f27ogifoan6q42fg6d7jdcvhgeo7a0mkik9he5hsragvig
-🔧 Executing: echo ["Multiple", "arguments", "test"] for n7hm8s89llvgck3evfq402ds9bhinou67nool7sco1ndtmc5h1ng
-🔧 Executing: nonexistent_command [] for ih1ffhuc90428fb58intidhucdqd1jqnegkb7sg71fph3s9tvab0
+🎧 Server listening on: dls8rlvcut7tfjkkngiluit5dok4rpn19kddv2m17vjvecbc0afg
+🔧 Executing: echo ["Hello_P2P"] for r7ceui1mm46o08k9qhq24rd7g5hfhvpg878eotn4mvprbop74m80
+🔧 Executing: ls ["target"] for 4526qjqjbmspmcfi8erqu96cps6nb1aaffae0mc1q6qeer73tjhg
+🔧 Executing: date [] for 96aht1gdutfmn8olk2gotkhk4kl0bo4rjn0hk4bsdkf3jf5gcvsg
+🔧 Executing: echo ["Multiple", "arguments", "test"] for 86nvn7kp5k3gjb9c5k4dgnd2arulqcdg24l352obnralvs4ss7pg
+🔧 Executing: nonexistent_command [] for o8sb1vfrdjmouhabngalkapokeuj0u06vk820iq8olbb8si88feg

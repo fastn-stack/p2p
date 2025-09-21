@@ -98,6 +98,9 @@ run_test "File Transfer (Streaming)" "./test-file-transfer.sh"
 if [ -f "./test-shell-simple.sh" ]; then
     run_test "Remote Shell (Simple)" "./test-shell-simple.sh"
 fi
+if [ -f "./test-media-stream.sh" ]; then
+    run_test "Media Stream (Audio)" "./test-media-stream.sh"
+fi
 
 # Summary
 if [ -n "$QUIET_FLAG" ]; then

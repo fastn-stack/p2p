@@ -13,6 +13,12 @@ thiserror.workspace = true
 reqwest.workspace = true
 hyper = { version = "1", features = ["server", "http1"] }
 
+# Audio streaming dependencies
+rodio = "0.19" # For audio playback
+minimp3 = "0.5" # For MP3 decoding 
+symphonia = { version = "0.5", features = ["mp3"] } # Alternative audio decoder
+bincode = "1.3" # For efficient serialization
+
 # Example binaries - each showcases a major P2P use case
 [[bin]]
 name = "request_response" 

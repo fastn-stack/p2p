@@ -1,0 +1,13 @@
+🎵 Audio Publisher starting...
+📁 MP3 file: test_audio.mp3
+🎧 Publisher listening on: a3rlht3a18b7p0osrl2vmq82169u9p3j4vfcknok2fcg5j7kcvj0
+📝 Creating test audio file: test_audio.mp3
+🎼 Generating test audio tone...
+✅ Created test audio file: test_audio.mp3 (882000 bytes)
+🎧 Server listening on: a3rlht3a18b7p0osrl2vmq82169u9p3j4vfcknok2fcg5j7kcvj0
+🔊 New subscriber connected: 5ter51fvofhm4qutnpfajohevc58bevomvvtv0fb0gim42d7n110
+📁 Loading MP3 file: test_audio.mp3
+✅ Loaded 882000 bytes of audio data
+📡 Sent 100 chunks, 366.6 KB/s
+📡 Sent 200 chunks, 365.3 KB/s
+✅ Finished streaming 216 chunks (861.33 KB total)
