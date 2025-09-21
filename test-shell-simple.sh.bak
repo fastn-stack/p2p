@@ -4,17 +4,6 @@
 # Tests remote command execution over P2P
 # Usage: ./test-shell-simple.sh [--retry]
 
-
-# Parse command line arguments
-QUIET_MODE=false
-
-for arg in "$@"; do
-    case $arg in
-        --quiet)
-            QUIET_MODE=true
-            ;;
-    esac
-done
 set -e
 
 # Check for retry flag

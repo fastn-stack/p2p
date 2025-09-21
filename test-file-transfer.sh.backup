@@ -5,17 +5,6 @@
 
 set -e  # Exit on error
 
-# Parse command line arguments
-QUIET_MODE=false
-
-for arg in "$@"; do
-    case $arg in
-        --quiet)
-            QUIET_MODE=true
-            ;;
-    esac
-done
-
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -226,18 +215,3 @@ echo -e "\n${YELLOW}Server log preview:${NC}"
 tail -10 file_server.log
 
 echo -e "\n${YELLOW}Test completed. Server will be shut down.${NC}"
-# Add quiet mode summary
-if [ "$QUIET_MODE" = true ]; then
-    # Override the verbose output with quiet summary
-    exec 3>&1 4>&2
-    trap 'exec 2>&4 1>&3' 0 1 2 3
-    exec 1>/tmp/test-output.$$ 2>&1
-    
-    # Re-run in background to capture results
-    (
-        echo -e "${GREEN}✅ File Transfer: PASS${NC}" >&3
-        echo "  • Small file: ${TRANSFER_TIME_MS}ms" >&3
-        echo "  • Large file: ${LARGE_TRANSFER_TIME_MS}ms (${LARGE_THROUGHPUT_MBPS} Mbps)" >&3
-        echo "  • Duration: $(($(date +%s) - TEST_START_TIME))s" >&3
-    )
-fi
