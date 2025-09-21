@@ -215,8 +215,11 @@ async fn audio_publisher_handler(
     let mut sequence = 0u64;
     let stream_start = Instant::now();
     
-    // Target 44.1kHz, 16-bit stereo (about 90 chunks per second for real-time)
-    let mut interval = interval(Duration::from_millis(11)); // ~90 Hz
+    // Calculate proper timing for real-time streaming
+    // For 44.1kHz stereo 16-bit: 4KB = ~23ms of audio
+    let bytes_per_second = 44100 * 2 * 2; // sample_rate * channels * bytes_per_sample
+    let chunk_duration_ms = (chunk_size as f64 / bytes_per_second as f64 * 1000.0) as u64;
+    let mut interval = interval(Duration::from_millis(chunk_duration_ms.max(10))); // At least 10ms
     
     for chunk_data in audio_data.chunks(chunk_size) {
         interval.tick().await;
@@ -267,58 +270,59 @@ async fn audio_publisher_handler(
     Ok(())
 }
 
-// Load MP3 file and decode to raw audio data
+// Load MP3 file and decode to PCM audio data
 async fn load_mp3_file(filename: &str) -> Result<Vec<u8>, MediaError> {
-    println!("📁 Loading MP3 file: {}", filename);
+    println!("📁 Loading and decoding MP3 file: {}", filename);
     
-    let data = tokio::fs::read(filename).await
+    let file_data = tokio::fs::read(filename).await
         .map_err(|_| MediaError::FileNotFound(filename.to_string()))?;
     
-    // Calculate and display MP3 info
-    let file_size_kb = data.len() as f64 / 1024.0;
-    let estimated_duration = estimate_mp3_duration(&data);
-    let estimated_bitrate = if estimated_duration > 0.0 {
-        (file_size_kb * 8.0) / estimated_duration
-    } else {
-        0.0
-    };
+    // Use minimp3 to decode MP3 to PCM
+    let mut decoder = minimp3::Decoder::new(&file_data);
+    let mut pcm_data = Vec::new();
+    let mut sample_rate = 44100;
+    let mut channels = 2;
     
-    println!("✅ MP3 Info:");
-    println!("   📦 Size: {:.1} KB", file_size_kb);
-    if estimated_duration > 0.0 {
-        println!("   ⏱️  Estimated duration: {:.1}s", estimated_duration);
-        println!("   🎵 Estimated bitrate: {:.0} kbps", estimated_bitrate);
-    }
-    println!("   📡 Will stream as {} KB audio data", file_size_kb);
-    
-    Ok(data)
-}
-
-// Simple MP3 duration estimation (very rough)
-fn estimate_mp3_duration(data: &[u8]) -> f64 {
-    // Look for MP3 frame headers to estimate duration
-    // This is a very basic estimation - real MP3 parsing would be more accurate
-    let mut frame_count = 0;
-    let mut i = 0;
-    
-    while i < data.len().saturating_sub(4) {
-        // Look for MP3 frame sync (0xFF followed by 0xE0-0xFF)
-        if data[i] == 0xFF && (data[i + 1] & 0xE0) == 0xE0 {
-            frame_count += 1;
-            i += 4; // Skip frame header
-        } else {
-            i += 1;
+    // Decode all frames
+    loop {
+        match decoder.next_frame() {
+            Ok(frame) => {
+                sample_rate = frame.sample_rate;
+                channels = frame.channels;
+                // Convert f32 samples to i16
+                for sample in frame.data {
+                    let sample_i16 = (sample * 32767.0).clamp(-32767.0, 32767.0) as i16;
+                    pcm_data.extend_from_slice(&sample_i16.to_le_bytes());
+                }
+            }
+            Err(minimp3::Error::Eof) => break,
+            Err(e) => {
+                return Err(MediaError::DecodeError(format!("MP3 decode error: {:?}", e)));
+            }
         }
     }
     
-    // Very rough estimation: ~38 frames per second for typical MP3
-    if frame_count > 10 {
-        frame_count as f64 / 38.0
-    } else {
-        // Fallback: assume ~128kbps for raw audio data
-        (data.len() as f64 * 8.0) / (128.0 * 1000.0)
+    if pcm_data.is_empty() {
+        return Err(MediaError::DecodeError("No audio data decoded".to_string()));
     }
+    
+    // Calculate and display audio info
+    let file_size_kb = file_data.len() as f64 / 1024.0;
+    let pcm_size_kb = pcm_data.len() as f64 / 1024.0;
+    let duration = pcm_data.len() as f64 / (sample_rate as f64 * channels as f64 * 2.0); // 2 bytes per sample
+    let bitrate = (file_size_kb * 8.0) / duration;
+    
+    println!("✅ MP3 Decoded:");
+    println!("   📦 File size: {:.1} KB", file_size_kb);
+    println!("   🔊 PCM size: {:.1} KB", pcm_size_kb);
+    println!("   ⏱️  Duration: {:.1}s", duration);
+    println!("   🎵 Sample rate: {} Hz", sample_rate);
+    println!("   📻 Channels: {}", channels);
+    println!("   📡 Bitrate: {:.0} kbps", bitrate);
+    
+    Ok(pcm_data)
 }
+
 
 // Create a test audio file (simple sine wave as MP3)
 async fn create_test_audio(filename: &str) -> Result<(), MediaError> {
