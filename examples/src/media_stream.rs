@@ -162,13 +162,17 @@ async fn run_subscriber(
     // Audio playback buffer - larger buffer to reduce jitter
     let (audio_tx, mut audio_rx) = mpsc::channel::<AudioChunk>(1000);
 
-    // Spawn audio player task
+    // Spawn audio player task with proper buffering
     let sink = std::sync::Arc::new(sink);
     let sink_clone = sink.clone();
     tokio::spawn(async move {
         while let Some(chunk) = audio_rx.recv().await {
             // Convert raw audio data to playable format
             if let Ok(source) = create_audio_source(chunk) {
+                // Wait for sink to have room before appending
+                while sink_clone.len() > 2 {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
                 sink_clone.append(source);
             }
         }
@@ -663,19 +667,30 @@ async fn create_test_audio(filename: &str) -> Result<(), MediaError> {
 // Create an audio source from raw chunk data for playback
 fn create_audio_source(chunk: AudioChunk) -> Result<rodio::buffer::SamplesBuffer<i16>, MediaError> {
     // Convert raw bytes to i16 samples
-    let mut samples = Vec::new();
+    let mut samples = Vec::with_capacity(chunk.data.len() / 2);
+    
+    // Handle both mono and stereo properly
     for chunk_bytes in chunk.data.chunks_exact(2) {
-        if chunk_bytes.len() == 2 {
-            let sample = i16::from_le_bytes([chunk_bytes[0], chunk_bytes[1]]);
-            samples.push(sample);
-        }
+        let sample = i16::from_le_bytes([chunk_bytes[0], chunk_bytes[1]]);
+        samples.push(sample);
     }
     
+    if samples.is_empty() {
+        return Err(MediaError::PlaybackError("No audio samples in chunk".to_string()));
+    }
+    
+    // Create the audio source with correct format
     let source = rodio::buffer::SamplesBuffer::new(
         chunk.channels,
         chunk.sample_rate,
         samples
     );
+    
+    println!("🎵 Playing chunk {}: {} samples, {}Hz, {} ch", 
+             chunk.sequence, 
+             source.len(),
+             chunk.sample_rate,
+             chunk.channels);
     
     Ok(source)
 }
