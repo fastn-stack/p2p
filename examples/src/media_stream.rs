@@ -134,7 +134,7 @@ async fn run_publisher(
     }
 
     fastn_p2p::listen(private_key)
-        .handle_streams(MediaProtocol::AudioStream, audio_file, audio_publisher_handler)
+        .handle_requests(MediaProtocol::AudioStream, audio_file, audio_request_handler)
         .await?;
 
     Ok(())
@@ -351,12 +351,11 @@ async fn run_subscriber(
     Ok(())
 }
 
-// Audio publisher handler - streams audio chunks to subscriber
-async fn audio_publisher_handler(
-    mut session: fastn_p2p::Session<MediaProtocol>,
-    _data: (),
+// Audio request handler - responds to client chunk requests
+async fn audio_request_handler(
+    request: StreamRequest,
     audio_file: String,
-) -> Result<(), MediaError> {
+) -> Result<StreamResponse, MediaError> {
     let handler_start = Instant::now();
     println!("🔊 New subscriber connected: {}", session.peer().id52());
     
