@@ -48,8 +48,18 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}🧪 Testing fastn-p2p shell_simple implementation${NC}"
-echo "================================================"
+# Redirect output if quiet mode
+if [ "$QUIET_MODE" = true ]; then
+    exec 3>&1 4>&2
+    exec 1>/tmp/test-shell-simple-$$.log 2>&1
+fi
+
+if [ "$QUIET_MODE" = false ]; then
+    echo -e "${YELLOW}🧪 Testing fastn-p2p shell_simple implementation${NC}"
+fi
+if [ "$QUIET_MODE" = false ]; then
+    echo "================================================"
+fi
 
 # Build first
 echo -e "${YELLOW}📦 Building shell_simple...${NC}"
@@ -144,7 +154,9 @@ fi
 echo ""
 
 # Cleanup
-echo -e "${YELLOW}🧹 Cleaning up...${NC}"
+if [ "$QUIET_MODE" = false ]; then
+    echo -e "${YELLOW}🧹 Cleaning up...${NC}"
+fi
 kill $DAEMON_PID 2>/dev/null || true
 
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -154,8 +166,19 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 # Performance Summary
 if [ $TOTAL_COMMANDS -gt 0 ]; then
     AVG_LATENCY_MS=$(echo "scale=2; $TOTAL_LATENCY_NS / $TOTAL_COMMANDS / 1000000" | bc)
-    echo -e "\n${YELLOW}📊 Performance Metrics:${NC}"
-    echo "  • Commands executed: $TOTAL_COMMANDS"
-    echo "  • Average command latency: ${AVG_LATENCY_MS}ms"
-    echo "  • Total test duration: $(($(date +%s) - TEST_START_TIME))s"
+    if [ "$QUIET_MODE" = false ]; then
+        echo -e "\n${YELLOW}📊 Performance Metrics:${NC}"
+        echo "  • Commands executed: $TOTAL_COMMANDS"
+        echo "  • Average command latency: ${AVG_LATENCY_MS}ms"
+        echo "  • Total test duration: $(($(date +%s) - TEST_START_TIME))s"
+    else
+        # Restore original stdout/stderr and show summary
+        exec 1>&3 2>&4
+        echo -e "${GREEN}✅ Shell Simple: PASS${NC}"
+        echo "  • Commands: $TOTAL_COMMANDS"
+        echo "  • Avg latency: ${AVG_LATENCY_MS}ms"
+        echo "  • Duration: $(($(date +%s) - TEST_START_TIME))s"
+        # Clean up log file
+        rm -f /tmp/test-shell-simple-$$.log
+    fi
 fi

@@ -116,14 +116,18 @@ else
 fi
 
 if [ $TESTS_FAILED -eq 0 ]; then
-    echo ""
-    echo -e "${GREEN}${BOLD}🎉 All tests passed!${NC}"
-    echo ""
-    echo -e "${YELLOW}${BOLD}Note:${NC} Each test includes detailed performance metrics at the end."
-    echo "Look for the 📊 Performance Metrics section in each test output above."
+    if [ -z "$QUIET_FLAG" ]; then
+        echo ""
+        echo -e "${GREEN}${BOLD}🎉 All tests passed!${NC}"
+        echo ""
+        echo -e "${YELLOW}${BOLD}Note:${NC} Each test includes detailed performance metrics at the end."
+        echo "Look for the 📊 Performance Metrics section in each test output above."
+    fi
     exit 0
 else
-    echo ""
+    if [ -z "$QUIET_FLAG" ]; then
+        echo ""
+    fi
     echo -e "${RED}${BOLD}⚠️  Some tests failed${NC}"
     exit 1
 fi

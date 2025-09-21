@@ -38,18 +38,32 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}🧪 Testing fastn-p2p file transfer implementation${NC}"
-echo "================================================"
+# Redirect output if quiet mode
+if [ "$QUIET_MODE" = true ]; then
+    exec 3>&1 4>&2
+    exec 1>/tmp/test-file-transfer-$$.log 2>&1
+fi
+
+if [ "$QUIET_MODE" = false ]; then
+    echo -e "${YELLOW}🧪 Testing fastn-p2p file transfer implementation${NC}"
+    echo "================================================"
+fi
 
 # Clean up function
 cleanup() {
-    echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
+    if [ "$QUIET_MODE" = false ]; then
+        echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
+        if [ ! -z "$SERVER_PID" ]; then
+            echo "Killing server (PID: $SERVER_PID)"
+        fi
+    fi
     if [ ! -z "$SERVER_PID" ]; then
-        echo "Killing server (PID: $SERVER_PID)"
         kill $SERVER_PID 2>/dev/null || true
     fi
     # Clean up test files
     rm -f test_file.txt downloaded_test_file.txt file_server.log 2>/dev/null || true
+    # Clean up quiet mode log if it exists
+    rm -f /tmp/test-file-transfer-$$.log 2>/dev/null || true
 }
 
 # Set up trap to clean up on exit
@@ -242,18 +256,14 @@ echo -e "\n${YELLOW}Server log preview:${NC}"
 tail -10 file_server.log
 
 echo -e "\n${YELLOW}Test completed. Server will be shut down.${NC}"
-# Add quiet mode summary
+# Quiet mode summary
 if [ "$QUIET_MODE" = true ]; then
-    # Override the verbose output with quiet summary
-    exec 3>&1 4>&2
-    trap 'exec 2>&4 1>&3' 0 1 2 3
-    exec 1>/tmp/test-output.$$ 2>&1
-    
-    # Re-run in background to capture results
-    (
-        echo -e "${GREEN}✅ File Transfer: PASS${NC}" >&3
-        echo "  • Small file: ${TRANSFER_TIME_MS}ms" >&3
-        echo "  • Large file: ${LARGE_TRANSFER_TIME_MS}ms (${LARGE_THROUGHPUT_MBPS} Mbps)" >&3
-        echo "  • Duration: $(($(date +%s) - TEST_START_TIME))s" >&3
-    )
+    # Restore original stdout/stderr and show summary
+    exec 1>&3 2>&4
+    echo -e "${GREEN}✅ File Transfer: PASS${NC}"
+    echo "  • Small file: ${TRANSFER_TIME_MS}ms"
+    echo "  • Large file: ${LARGE_TRANSFER_TIME_MS}ms (${LARGE_THROUGHPUT_MBPS} Mbps)"
+    echo "  • Duration: $(($(date +%s) - TEST_START_TIME))s"
+    # Clean up log file
+    rm -f /tmp/test-file-transfer-$$.log
 fi

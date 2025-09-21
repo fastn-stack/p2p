@@ -1,0 +1,8 @@
+🐚 Shell daemon listening on: v3lfivfe18575606uh5u0upojbt7u4t537uoojjughpcagisu9ig
+⚠️  WARNING: This allows remote command execution!
+🎧 Server listening on: v3lfivfe18575606uh5u0upojbt7u4t537uoojjughpcagisu9ig
+🔧 Executing: echo ["Hello_P2P"] for d5nksrkr8namjfc3nck1qis595dg2kgchk1qbb526iccvqnebqj0
+🔧 Executing: ls ["target"] for 05uimtrnjq33o8knb8a6n9mncn3bhhr9p8phveh95teqjk296ig0
+🔧 Executing: date [] for tjo8b8f27ogifoan6q42fg6d7jdcvhgeo7a0mkik9he5hsragvig
+🔧 Executing: echo ["Multiple", "arguments", "test"] for n7hm8s89llvgck3evfq402ds9bhinou67nool7sco1ndtmc5h1ng
+🔧 Executing: nonexistent_command [] for ih1ffhuc90428fb58intidhucdqd1jqnegkb7sg71fph3s9tvab0
