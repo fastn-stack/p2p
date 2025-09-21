@@ -111,15 +111,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 b' ' => {
                     if control_sink.is_paused() {
                         control_sink.play();
-                        println!("▶️  Resumed");
+                        print!("\r▶️  Resumed          \r\n");
+                        use std::io::Write;
+                        std::io::stdout().flush().unwrap();
                     } else {
                         control_sink.pause();
-                        println!("⏸️  Paused");
+                        print!("\r⏸️  Paused           \r\n");
+                        use std::io::Write;
+                        std::io::stdout().flush().unwrap();
                     }
                 }
                 b'q' | 27 => { // q or ESC
                     control_sink.stop();
-                    println!("⏹️  Stopped");
+                    print!("\r⏹️  Stopped          \r\n");
+                    use std::io::Write;
+                    std::io::stdout().flush().unwrap();
                     break;
                 }
                 _ => {
