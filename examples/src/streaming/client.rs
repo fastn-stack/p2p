@@ -83,28 +83,25 @@ impl AudioClient {
         println!("🔍 Getting stream info...");
         
         // Get stream info
-        let stream_info: StreamResponse = fastn_p2p::client::call(
+        let stream_info: AudioInfoResponse = fastn_p2p::client::call(
             private_key.clone(),
             target,
-            StreamingProtocol::AudioV2,
-            StreamRequest::GetStreamInfo,
+            AUDIO_GET_INFO,
+            AudioInfoRequest,
         ).await?;
         
-        let (total_chunks, chunk_duration_ms, sample_rate, channels, duration_seconds) = match stream_info {
-            StreamResponse::StreamInfo { 
-                total_chunks, 
-                chunk_duration_ms, 
-                sample_rate, 
-                channels, 
-                total_duration_seconds,
-                ..
-            } => {
-                println!("✅ Stream info received (+{:.3}s)", connect_start.elapsed().as_secs_f64());
-                println!("📊 Stream: {:.1}s, {}Hz, {} ch, {} chunks", 
-                         total_duration_seconds, sample_rate, channels, total_chunks);
-                (total_chunks, chunk_duration_ms, sample_rate, channels, total_duration_seconds)
-            }
-            _ => return Err("Failed to get stream info".into()),
+        let (total_chunks, chunk_duration_ms, sample_rate, channels, duration_seconds) = {
+            println!("✅ Stream info received (+{:.3}s)", connect_start.elapsed().as_secs_f64());
+            println!("📊 Stream: {:.1}s, {}Hz, {} ch, {} chunks", 
+                     stream_info.total_duration_seconds, stream_info.sample_rate, 
+                     stream_info.channels, stream_info.total_chunks);
+            (
+                stream_info.total_chunks,
+                stream_info.chunk_duration_ms,
+                stream_info.sample_rate,
+                stream_info.channels,
+                stream_info.total_duration_seconds,
+            )
         };
         
         // Create buffer with 3 second target
@@ -127,21 +124,19 @@ impl AudioClient {
     }
     
     pub async fn request_chunk(&mut self, chunk_id: u64) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
-        let response: StreamResponse = fastn_p2p::client::call(
+        let response: AudioChunkResponse = fastn_p2p::client::call(
             self.private_key.clone(),
             self.target,
-            StreamingProtocol::AudioV2,
-            StreamRequest::RequestChunk { chunk_id },
+            AUDIO_REQUEST_CHUNK,
+            AudioChunkRequest { chunk_id },
         ).await?;
         
-        match response {
-            StreamResponse::AudioChunk { data, is_last, .. } => {
-                self.buffer.add_chunk(data.clone());
-                Ok(Some(data))
-            }
-            StreamResponse::EndOfStream => Ok(None),
-            StreamResponse::Error(e) => Err(e.into()),
-            _ => Err("Unexpected response".into()),
+        self.buffer.add_chunk(response.data.clone());
+        
+        if response.is_last {
+            Ok(None) // Signal end of stream
+        } else {
+            Ok(Some(response.data))
         }
     }
     
