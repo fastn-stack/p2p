@@ -1,5 +1,7 @@
 //! Shared utilities for P2P examples
 
+use std::path::Path;
+
 /// Parse a key from string or generate a new one
 pub fn key_from_str_or_generate(
     key_str: Option<&str>,
@@ -8,6 +10,39 @@ pub fn key_from_str_or_generate(
         Some(s) => Ok(s.parse()?),
         None => Ok(fastn_p2p::SecretKey::generate()),
     }
+}
+
+/// Get or create a persistent private key for the given example
+/// Stores keys in .fastn-{example_name}.key files for consistent server IDs
+pub fn get_or_create_persistent_key(example_name: &str) -> fastn_p2p::SecretKey {
+    let key_file = format!(".fastn-{}.key", example_name);
+    
+    // Try to load existing key
+    if Path::new(&key_file).exists() {
+        if let Ok(key_data) = std::fs::read_to_string(&key_file) {
+            if let Ok(key) = key_data.trim().parse::<fastn_p2p::SecretKey>() {
+                println!("🔑 Using persistent key from: {}", key_file);
+                return key;
+            }
+        }
+        println!("⚠️  Could not load key from {}, generating new one", key_file);
+    }
+    
+    // Generate new key
+    let key = fastn_p2p::SecretKey::generate();
+    
+    // Try to save it
+    match std::fs::write(&key_file, key.to_string()) {
+        Ok(_) => {
+            println!("🔑 Generated and saved persistent key to: {}", key_file);
+            println!("   (Server ID will remain consistent across restarts)");
+        }
+        Err(e) => {
+            println!("⚠️  Could not save key to {} ({}), server ID will change on restart", key_file, e);
+        }
+    }
+    
+    key
 }
 
 /// Parse a peer ID from string

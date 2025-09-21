@@ -63,8 +63,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             private_key,
             config,
         } => {
+            // Use persistent key if no specific key provided
+            let server_key = if config.iter().any(|c| c.starts_with("--key")) {
+                private_key
+            } else {
+                examples::get_or_create_persistent_key("media_stream")
+            };
             let mp3_file = config.first().cloned().unwrap_or_else(|| "examples/assets/test-audio.mp3".to_string());
-            run_publisher(private_key, mp3_file).await
+            run_publisher(server_key, mp3_file).await
         }
         examples::Client { target, config: _ } => {
             run_subscriber(target).await
@@ -191,8 +197,27 @@ async fn run_subscriber(
         }
     }
 
-    println!("📊 Final stats: {} chunks, {:.2} KB total, {} dropped", 
-             stats.chunks_received, stats.bytes_received as f64 / 1024.0, stats.chunks_dropped);
+    // Calculate final metrics
+    let total_duration = stats.start_time.unwrap().elapsed().as_secs_f64();
+    let avg_throughput_kbps = (stats.bytes_received as f64 * 8.0) / total_duration / 1000.0;
+    let packet_loss_rate = if stats.chunks_received > 0 {
+        (stats.chunks_dropped as f64 / stats.chunks_received as f64) * 100.0
+    } else {
+        0.0
+    };
+    
+    println!("");
+    println!("📊 Client Streaming Metrics:");
+    println!("   ⏱️  Total duration: {:.1}s", total_duration);
+    println!("   📦 Chunks received: {}", stats.chunks_received);
+    println!("   💾 Data received: {:.1} KB", stats.bytes_received as f64 / 1024.0);
+    println!("   🚀 Average throughput: {:.0} kbps", avg_throughput_kbps);
+    println!("   📉 Packet loss: {:.2}%", packet_loss_rate);
+    println!("   🔊 Audio quality: {}", if packet_loss_rate < 1.0 { "Excellent" } else if packet_loss_rate < 5.0 { "Good" } else { "Poor" });
+    
+    if stats.chunks_dropped > 0 {
+        println!("   ⚠️  {} chunks dropped - may cause audio gaps", stats.chunks_dropped);
+    }
     
     Ok(())
 }
@@ -264,8 +289,17 @@ async fn audio_publisher_handler(
         }
     }
     
-    println!("✅ Finished streaming {} chunks ({:.2} KB total)", 
-             stats.chunks_sent, stats.bytes_sent as f64 / 1024.0);
+    // Calculate server-side metrics
+    let total_duration = stats.start_time.unwrap().elapsed().as_secs_f64();
+    let avg_throughput_kbps = (stats.bytes_sent as f64 * 8.0) / total_duration / 1000.0;
+    
+    println!("");
+    println!("📊 Server Streaming Metrics:");
+    println!("   ⏱️  Stream duration: {:.1}s", total_duration);
+    println!("   📦 Chunks sent: {}", stats.chunks_sent);
+    println!("   💾 Data sent: {:.1} KB", stats.bytes_sent as f64 / 1024.0);
+    println!("   🚀 Average throughput: {:.0} kbps", avg_throughput_kbps);
+    println!("   🎵 Stream completed successfully");
     
     Ok(())
 }
