@@ -301,16 +301,13 @@ async fn run_subscriber(
     println!("   📦 Chunks received: {}", stats.chunks_received);
     println!("   💾 Data received: {:.1} KB", stats.bytes_received as f64 / 1024.0);
     println!("   🚀 Average throughput: {:.0} kbps", avg_throughput_kbps);
-    println!("   📉 Packet loss: {:.2}%", packet_loss_rate);
     println!("   📊 Jitter: {:.1}ms avg, {:.1}ms stddev", avg_jitter_ms, jitter_stddev_ms);
     
-    let quality = if packet_loss_rate > 5.0 {
-        "Poor"
-    } else if jitter_stddev_ms > 100.0 {
+    let quality = if jitter_stddev_ms > 100.0 {
         "Poor (High Jitter)"
     } else if jitter_stddev_ms > 50.0 {
         "Fair (Moderate Jitter)"
-    } else if packet_loss_rate < 1.0 && jitter_stddev_ms < 20.0 {
+    } else if jitter_stddev_ms < 20.0 {
         "Excellent"
     } else {
         "Good"
@@ -342,8 +339,8 @@ async fn audio_publisher_handler(
     let mut stats = StreamStats::default();
     stats.start_time = Some(Instant::now());
     
-    // Stream audio chunks at regular intervals - large chunks for best quality
-    let chunk_size = 262144; // 256KB chunks for high-quality streaming
+    // Stream audio chunks - smaller chunks for continuous playback
+    let chunk_size = 32768; // 32KB chunks for continuous streaming
     let mut sequence = 0u64;
     let stream_start = Instant::now();
     
