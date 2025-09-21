@@ -197,7 +197,7 @@ async fn run_subscriber(
         }
         
         let chunk_size = u32::from_le_bytes(chunk_size_buf) as usize;
-        if chunk_size > 1024 * 1024 { // 1MB max chunk size
+        if chunk_size > 2 * 1024 * 1024 { // 2MB max chunk size
             eprintln!("⚠️ Chunk too large: {} bytes", chunk_size);
             continue;
         }
@@ -324,8 +324,8 @@ async fn audio_publisher_handler(
     let mut stats = StreamStats::default();
     stats.start_time = Some(Instant::now());
     
-    // Stream audio chunks at regular intervals - larger chunks for better quality
-    let chunk_size = 8192; // 8KB chunks for smoother streaming
+    // Stream audio chunks at regular intervals - large chunks for best quality
+    let chunk_size = 262144; // 256KB chunks for high-quality streaming
     let mut sequence = 0u64;
     let stream_start = Instant::now();
     
