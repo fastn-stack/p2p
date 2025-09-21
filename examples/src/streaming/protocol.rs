@@ -1,17 +1,18 @@
-//! Type-safe protocol definitions for client-driven audio streaming
-//! Uses string constants for protocol identification with clean request/response types.
+//! Protocol definitions for client-driven audio streaming
 
-// Protocol string constants - clean and efficient
-pub const AUDIO_GET_INFO: &str = "audio.get_info";
-pub const AUDIO_REQUEST_CHUNK: &str = "audio.request_chunk";  
-pub const AUDIO_STOP: &str = "audio.stop";
+// Protocol enum for current fastn-p2p API (will migrate to &'static str later - see GitHub issue #2)
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
+pub enum AudioProtocol {
+    GetInfo,
+    RequestChunk,
+}
 
-// Get stream metadata
+// Get stream metadata request/response
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct AudioInfoRequest;  // Empty struct for info request
+pub struct GetInfoRequest;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct AudioInfoResponse {
+pub struct GetInfoResponse {
     pub total_chunks: u64,
     pub chunk_size_bytes: usize,
     pub chunk_duration_ms: u64,
@@ -20,30 +21,21 @@ pub struct AudioInfoResponse {
     pub total_duration_seconds: f64,
 }
 
-// Request audio chunk
+// Request audio chunk request/response
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct AudioChunkRequest {
+pub struct RequestChunkRequest {
     pub chunk_id: u64,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct AudioChunkResponse {
+pub struct RequestChunkResponse {
     pub chunk_id: u64,
     pub data: Vec<u8>,
     pub is_last: bool,
 }
 
-// Stop streaming
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct AudioStopRequest;  // Empty struct for stop request
-
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct AudioStopResponse {
-    pub stopped: bool,
-}
-
 // Client buffer status for adaptive streaming
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BufferStatus {
     pub buffered_chunks: usize,
     pub buffered_duration_ms: u64,

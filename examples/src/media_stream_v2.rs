@@ -1,13 +1,11 @@
-//! Client-Driven Media Streaming V2
+//! Client-Driven Media Streaming V2 - Main Entry Point
 //!
-//! Clean modular implementation with:
-//! - Client-controlled buffering
-//! - Interactive play/pause controls  
-//! - Request/response protocol
-//! - Separated concerns: protocol, server, client, UI
+//! Orchestrates the modular streaming components:
+//! - Uses current enum protocol approach 
+//! - Clean separation: protocol, server, client, UI
+//! - Interactive SPACE pause/resume controls
 
 mod streaming;
-
 use streaming::*;
 
 #[fastn_p2p::main]
@@ -29,42 +27,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+/// Run audio server - loads audio file and handles client requests
 async fn run_server(
     private_key: fastn_p2p::SecretKey,
     audio_file: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("🎵 Audio Server V2 starting...");
-    println!("🎧 Server listening on: {}", private_key.id52());
-    println!("");
-    println!("🚀 To connect from another machine, run:");
-    println!("   cargo run --bin media_stream_v2 -- client {}", private_key.id52());
-    println!("");
-    
-    // Load audio data once
-    let audio_server = AudioServer::new(&audio_file).await?;
-    
-    // Start request handler
-    fastn_p2p::listen(private_key)
-        .handle_requests(StreamingProtocol::AudioV2, |request| {
-            let server = audio_server.clone();
-            async move { server::handle_request(request, server).await }
-        })
-        .await?;
-    
-    Ok(())
+    // TODO: Print "Audio Server V2 starting..."
+    // TODO: Print server ID and connection command
+    // TODO: Create AudioServer::new(&audio_file) - loads and decodes audio
+    // TODO: Setup fastn_p2p::listen() with AudioProtocol::GetInfo handler
+    // TODO: Setup fastn_p2p::listen() with AudioProtocol::RequestChunk handler  
+    // TODO: Start listening for requests
+    todo!()
 }
 
+/// Run audio client - connects, buffers, and plays audio with interactive controls
 async fn run_client(
     target: fastn_p2p::PublicKey,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("🎧 Audio Client V2 connecting to: {}", target);
-    
-    // Connect and get stream info
-    let client = AudioClient::connect(target).await?;
-    
-    // Create UI and start streaming
-    let ui = StreamingUI::new(client).await?;
-    ui.start_streaming().await?;
-    
-    Ok(())
+    // TODO: Print "Audio Client V2 connecting to: {target}"
+    // TODO: Create AudioClient::connect(target) - gets stream info
+    // TODO: Create StreamingUI::new(client) - setup audio playback
+    // TODO: Call ui.start_streaming() - starts all background tasks
+    todo!()
 }

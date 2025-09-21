@@ -3,9 +3,8 @@
 use super::protocol::*;
 use std::collections::VecDeque;
 use std::time::Instant;
-use tokio::sync::mpsc;
 
-// Client-side audio buffer manager
+/// Client-side audio buffer manager
 #[derive(Debug)]
 pub struct AudioBuffer {
     chunks: VecDeque<Vec<u8>>,
@@ -16,59 +15,63 @@ pub struct AudioBuffer {
 }
 
 impl AudioBuffer {
+    /// Create new audio buffer with target buffering duration
     pub fn new(target_buffer_ms: u64, chunk_duration_ms: u64) -> Self {
-        Self {
-            chunks: VecDeque::new(),
-            target_buffer_ms,
-            current_buffer_ms: 0,
-            chunk_duration_ms,
-            is_playing: true,
-        }
+        // TODO: Initialize VecDeque for chunks
+        // TODO: Set target_buffer_ms (e.g., 3000ms = 3 seconds)
+        // TODO: Set chunk_duration_ms from server metadata
+        // TODO: Set is_playing = true initially
+        // TODO: Set current_buffer_ms = 0
+        todo!()
     }
     
+    /// Check if buffer needs more data (below target and playing)
     pub fn needs_data(&self) -> bool {
-        self.is_playing && self.current_buffer_ms < self.target_buffer_ms
+        // TODO: Return true if is_playing && current_buffer_ms < target_buffer_ms
+        todo!()
     }
     
+    /// Add new audio chunk to buffer
     pub fn add_chunk(&mut self, data: Vec<u8>) {
-        self.chunks.push_back(data);
-        self.current_buffer_ms += self.chunk_duration_ms;
+        // TODO: Push data to chunks VecDeque
+        // TODO: Add chunk_duration_ms to current_buffer_ms
+        todo!()
     }
     
+    /// Get next audio chunk for playback (removes from buffer)
     pub fn get_chunk(&mut self) -> Option<Vec<u8>> {
-        if let Some(chunk) = self.chunks.pop_front() {
-            self.current_buffer_ms = self.current_buffer_ms.saturating_sub(self.chunk_duration_ms);
-            Some(chunk)
-        } else {
-            None
-        }
+        // TODO: Pop chunk from front of VecDeque
+        // TODO: If got chunk, subtract chunk_duration_ms from current_buffer_ms
+        // TODO: Return the chunk data
+        todo!()
     }
     
+    /// Pause playback (stops requesting new chunks)
     pub fn pause(&mut self) {
-        self.is_playing = false;
+        // TODO: Set is_playing = false
+        todo!()
     }
     
+    /// Resume playback (starts requesting chunks again)
     pub fn resume(&mut self) {
-        self.is_playing = true;
+        // TODO: Set is_playing = true
+        todo!()
     }
     
+    /// Get current buffer status for monitoring
     pub fn status(&self) -> BufferStatus {
-        BufferStatus {
-            buffered_chunks: self.chunks.len(),
-            buffered_duration_ms: self.current_buffer_ms,
-            target_buffer_ms: self.target_buffer_ms,
-            is_playing: self.is_playing,
-            needs_data: self.needs_data(),
-        }
+        // TODO: Return BufferStatus with current state
+        // TODO: Calculate needs_data using self.needs_data()
+        todo!()
     }
 }
 
-// Audio client for P2P streaming
+/// Audio client for P2P streaming with buffer management
 pub struct AudioClient {
     private_key: fastn_p2p::SecretKey,
     target: fastn_p2p::PublicKey,
     buffer: AudioBuffer,
-    // Stream info
+    // Stream metadata from server
     pub total_chunks: u64,
     pub sample_rate: u32,
     pub channels: u16,
@@ -76,87 +79,55 @@ pub struct AudioClient {
 }
 
 impl AudioClient {
+    /// Connect to audio server and get stream information
     pub async fn connect(target: fastn_p2p::PublicKey) -> Result<Self, Box<dyn std::error::Error>> {
-        let private_key = fastn_p2p::SecretKey::generate();
-        let connect_start = Instant::now();
-        
-        println!("🔍 Getting stream info...");
-        
-        // Get stream info
-        let stream_info: AudioInfoResponse = fastn_p2p::client::call(
-            private_key.clone(),
-            target,
-            AUDIO_GET_INFO,
-            AudioInfoRequest,
-        ).await?;
-        
-        let (total_chunks, chunk_duration_ms, sample_rate, channels, duration_seconds) = {
-            println!("✅ Stream info received (+{:.3}s)", connect_start.elapsed().as_secs_f64());
-            println!("📊 Stream: {:.1}s, {}Hz, {} ch, {} chunks", 
-                     stream_info.total_duration_seconds, stream_info.sample_rate, 
-                     stream_info.channels, stream_info.total_chunks);
-            (
-                stream_info.total_chunks,
-                stream_info.chunk_duration_ms,
-                stream_info.sample_rate,
-                stream_info.channels,
-                stream_info.total_duration_seconds,
-            )
-        };
-        
-        // Create buffer with 3 second target
-        let target_buffer_ms = 3000;
-        let buffer = AudioBuffer::new(target_buffer_ms, chunk_duration_ms);
-        
-        println!("🔊 Buffer target: {:.1}s ({} chunks)", 
-                 target_buffer_ms as f64 / 1000.0,
-                 target_buffer_ms / chunk_duration_ms);
-        
-        Ok(Self {
-            private_key,
-            target,
-            buffer,
-            total_chunks,
-            sample_rate,
-            channels,
-            duration_seconds,
-        })
+        // TODO: Generate private_key = fastn_p2p::SecretKey::generate()
+        // TODO: Print "Getting stream info..."
+        // TODO: Call fastn_p2p::client::call() with AudioProtocol::GetInfo, GetInfoRequest
+        // TODO: Parse GetInfoResponse to extract metadata
+        // TODO: Create AudioBuffer with target_buffer_ms=3000, chunk_duration_ms from response
+        // TODO: Print connection success with timing
+        // TODO: Print stream info (duration, format, chunks, buffer target)
+        // TODO: Return AudioClient instance
+        todo!()
     }
     
-    pub async fn request_chunk(&mut self, chunk_id: u64) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
-        let response: AudioChunkResponse = fastn_p2p::client::call(
-            self.private_key.clone(),
-            self.target,
-            AUDIO_REQUEST_CHUNK,
-            AudioChunkRequest { chunk_id },
-        ).await?;
-        
-        self.buffer.add_chunk(response.data.clone());
-        
-        if response.is_last {
-            Ok(None) // Signal end of stream
-        } else {
-            Ok(Some(response.data))
-        }
+    /// Request specific audio chunk from server
+    pub async fn request_chunk(&mut self, chunk_id: u64) -> Result<bool, Box<dyn std::error::Error>> {
+        // TODO: Call fastn_p2p::client::call() with AudioProtocol::RequestChunk, RequestChunkRequest
+        // TODO: Parse RequestChunkResponse 
+        // TODO: Call self.buffer.add_chunk(response.data)
+        // TODO: Return !response.is_last (true if more chunks available)
+        todo!()
     }
     
+    /// Get buffer status for monitoring
     pub fn get_buffer_status(&self) -> BufferStatus {
-        self.buffer.status()
+        // TODO: Return self.buffer.status()
+        todo!()
     }
     
+    /// Get next audio chunk for playback
     pub fn get_audio_chunk(&mut self) -> Option<Vec<u8>> {
-        self.buffer.get_chunk()
+        // TODO: Return self.buffer.get_chunk()
+        todo!()
     }
     
+    /// Pause streaming (stops requesting new chunks)
     pub fn pause(&mut self) {
-        self.buffer.pause();
+        // TODO: Call self.buffer.pause()
+        todo!()
     }
     
+    /// Resume streaming (starts requesting chunks again)
     pub fn resume(&mut self) {
-        self.buffer.resume();
+        // TODO: Call self.buffer.resume()
+        todo!()
     }
     
+    /// Check if client needs more data
     pub fn needs_data(&self) -> bool {
-        self.buffer.needs_data()
+        // TODO: Return self.buffer.needs_data()
+        todo!()
     }
 }
