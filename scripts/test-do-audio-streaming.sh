@@ -5,22 +5,17 @@
 # Self-contained with automatic setup, cleanup, and audio quality validation.
 #
 # Usage:
-#   Default: ./test-do-audio-streaming.sh (fast droplet, ~5min setup)
-#   Quick test: ./test-do-audio-streaming.sh --small (cheaper but slower setup)
-#   High quality: ./test-do-audio-streaming.sh --turbo (fastest setup)
+#   Default: ./test-do-audio-streaming.sh (beast droplet, ~3min total)
+#   High quality: ./test-do-audio-streaming.sh --high-quality (real MP3 streaming)
+#   Long test: ./test-do-audio-streaming.sh --duration 60 (stream for 1 minute)
 #
-# Droplet sizes:
-#   --small: 1GB RAM, $6/month, slower builds (~15min)
-#   --fast: 4GB RAM, $48/month, fast builds (~5min) [DEFAULT]
-#   --turbo: 8CPU/16GB RAM, $96/month, fastest builds (~3min)
-#
-# Audio options:
-#   --high-quality: Use high-quality MP3 for better audio testing
+# Options:
+#   --high-quality: Download and use high-quality MP3 for testing
 #   --duration N: Stream for N seconds (default: 30)
-#
-# Debugging:
 #   --keep-droplet: Keep droplet after test for debugging
 #   --verbose: Show detailed output
+#
+# Note: Always uses beast droplet (8CPU/16GB) for fastest builds (~3min vs 15+min)
 #
 # Requirements: doctl auth init (one-time setup)
 
@@ -38,7 +33,7 @@ NC='\033[0m'
 TEST_ID="fastn-audio-$(date +%s)"
 START_TIME=$(date +%s)
 DROPLET_NAME="fastn-audio-test-$TEST_ID"
-DROPLET_SIZE="s-4vcpu-8gb"  # Default: fast builds
+DROPLET_SIZE="s-8vcpu-16gb"  # Default: beast mode for fastest builds
 DROPLET_REGION="nyc1"  # New York for good connectivity to US
 DROPLET_IMAGE="ubuntu-22-04-x64"
 TEST_SSH_KEY="/tmp/${TEST_ID}_ssh_key"
@@ -64,18 +59,6 @@ time_checkpoint() {
 # Parse arguments
 for arg in "$@"; do
     case $arg in
-        "--small")
-            DROPLET_SIZE="s-1vcpu-1gb"
-            log "Using small droplet (1GB RAM, cheaper but slower)"
-            ;;
-        "--fast")
-            DROPLET_SIZE="s-4vcpu-8gb"
-            log "Using fast droplet (4CPU/8GB RAM) [DEFAULT]"
-            ;;
-        "--turbo")
-            DROPLET_SIZE="s-8vcpu-16gb"
-            log "Using turbo droplet (8CPU/16GB RAM, fastest)"
-            ;;
         "--high-quality")
             HIGH_QUALITY=true
             log "Will download high-quality MP3 for testing"
@@ -96,18 +79,19 @@ for arg in "$@"; do
         "--help")
             echo "Usage: $0 [OPTIONS]"
             echo "Options:"
-            echo "  --small         Use 1GB droplet (cheaper, slower)"
-            echo "  --fast          Use 4GB droplet (default, balanced)"
-            echo "  --turbo         Use 8CPU/16GB droplet (fastest)"
-            echo "  --high-quality  Download high-quality MP3"
+            echo "  --high-quality  Download high-quality MP3 for testing"
             echo "  --duration N    Stream for N seconds (default: 30)"
             echo "  --keep-droplet  Keep droplet for debugging"
             echo "  --verbose       Show detailed output"
             echo "  --help          Show this help"
+            echo ""
+            echo "Note: Always uses beast droplet (8CPU/16GB) for fastest builds"
             exit 0
             ;;
         *)
-            warn "Unknown argument: $arg (ignoring)"
+            echo "Error: Unknown argument $arg"
+            echo "Usage: $0 [--high-quality] [--duration N] [--keep-droplet] [--verbose]"
+            exit 1
             ;;
     esac
 done
