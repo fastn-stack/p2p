@@ -114,6 +114,7 @@ async fn run_subscriber(
     target: fastn_p2p::PublicKey,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let private_key = fastn_p2p::SecretKey::generate();
+    let start_time = Instant::now();
 
     println!("🎧 Audio Subscriber connecting to: {}", target);
     println!("🔍 Attempting P2P connection...");
@@ -126,7 +127,8 @@ async fn run_subscriber(
         (), // No data needed for subscription
     ).await {
         Ok(session) => {
-            println!("✅ P2P connection established!");
+            let connection_time = start_time.elapsed();
+            println!("✅ P2P connection established! (+{:.3}s)", connection_time.as_secs_f64());
             println!("🔊 Starting audio playback...");
             session
         }
@@ -142,11 +144,15 @@ async fn run_subscriber(
     };
 
     // Start audio playback system
+    let audio_setup_start = Instant::now();
     let (_stream, stream_handle) = rodio::OutputStream::try_default()
         .map_err(|e| MediaError::PlaybackError(format!("Failed to create audio output: {}", e)))?;
     
     let sink = rodio::Sink::try_new(&stream_handle)
         .map_err(|e| MediaError::PlaybackError(format!("Failed to create audio sink: {}", e)))?;
+    
+    let audio_setup_time = audio_setup_start.elapsed();
+    println!("🔧 Audio system ready (+{:.3}s)", audio_setup_time.as_secs_f64());
 
     let mut stats = StreamStats::default();
     stats.start_time = Some(Instant::now());
@@ -209,6 +215,12 @@ async fn run_subscriber(
 
         match bincode::deserialize::<AudioChunk>(&chunk_data) {
             Ok(chunk) => {
+                // Print timing for first chunk
+                if stats.chunks_received == 0 {
+                    let first_chunk_time = start_time.elapsed();
+                    println!("📦 First chunk received (+{:.3}s)", first_chunk_time.as_secs_f64());
+                }
+                
                 // Update statistics and calculate jitter
                 stats.chunks_received += 1;
                 stats.bytes_received += chunk.data.len() as u64;
@@ -317,10 +329,15 @@ async fn audio_publisher_handler(
     _data: (),
     audio_file: String,
 ) -> Result<(), MediaError> {
+    let handler_start = Instant::now();
     println!("🔊 New subscriber connected: {}", session.peer().id52());
     
     // Read and decode audio file to get actual audio format
+    let decode_start = Instant::now();
     let (audio_data, sample_rate, channels) = load_audio_file_with_format(&audio_file).await?;
+    let decode_time = decode_start.elapsed();
+    println!("📁 Audio decoded (+{:.3}s)", decode_time.as_secs_f64());
+    
     let mut stats = StreamStats::default();
     stats.start_time = Some(Instant::now());
     
@@ -341,6 +358,9 @@ async fn audio_publisher_handler(
     // Use slightly faster timing to prevent underruns
     let adjusted_timing = (chunk_duration_ms as f64 * 0.95) as u64; // 5% faster
     let mut interval = interval(Duration::from_millis(adjusted_timing.max(5))); // At least 5ms
+    
+    let streaming_start = Instant::now();
+    println!("🚀 Starting audio stream (+{:.3}s)", streaming_start.duration_since(handler_start).as_secs_f64());
     
     for chunk_data in audio_data.chunks(chunk_size) {
         interval.tick().await;
