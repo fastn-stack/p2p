@@ -150,6 +150,13 @@ async fn run_server(
     Ok(())
 }
 
+// Structure of the wrapper request sent by client
+#[derive(serde::Deserialize)]
+struct WrapperRequest {
+    protocol: serde_json::Value,
+    data: serde_json::Value,
+}
+
 async fn handle_connection(
     conn: iroh::endpoint::Incoming,
     handlers: &std::collections::HashMap<serde_json::Value, RequestHandler>,
@@ -176,14 +183,11 @@ async fn handle_connection(
             }
         };
         
-        // Read the wrapper request
-        let wrapper_json = fastn_net::next_string(&mut recv_stream).await?;
-        
-        // Parse wrapper request to extract protocol and data
-        let wrapper: serde_json::Value = match serde_json::from_str(&wrapper_json) {
+        // Read and parse the wrapper request directly as typed struct
+        let wrapper: WrapperRequest = match fastn_net::next_json(&mut recv_stream).await {
             Ok(wrapper) => wrapper,
             Err(e) => {
-                tracing::warn!("Failed to parse wrapper request: {}", e);
+                tracing::warn!("Failed to read/parse wrapper request: {}", e);
                 let error_msg = format!("Failed to parse wrapper request: {}", e);
                 send_stream.write_all(error_msg.as_bytes()).await?;
                 send_stream.write_all(b"\n").await?;
@@ -191,34 +195,22 @@ async fn handle_connection(
             }
         };
         
-        // Extract protocol and data from wrapper
-        let (protocol_json, data_json) = match (wrapper.get("protocol"), wrapper.get("data")) {
-            (Some(protocol), Some(data)) => (protocol.clone(), data.clone()),
-            _ => {
-                tracing::warn!("Invalid wrapper request format: missing protocol or data");
-                let error_msg = "Invalid wrapper request format: missing protocol or data";
-                send_stream.write_all(error_msg.as_bytes()).await?;
-                send_stream.write_all(b"\n").await?;
-                continue;
-            }
-        };
-        
         // Find handler for this protocol
-        let handler = match handlers.get(&protocol_json) {
+        let handler = match handlers.get(&wrapper.protocol) {
             Some(handler) => handler,
             None => {
-                tracing::warn!("No handler for protocol {:?} from peer {}", protocol_json, peer_key.id52());
-                let error_msg = format!("No handler for protocol: {:?}", protocol_json);
+                tracing::warn!("No handler for protocol {:?} from peer {}", wrapper.protocol, peer_key.id52());
+                let error_msg = format!("No handler for protocol: {:?}", wrapper.protocol);
                 send_stream.write_all(error_msg.as_bytes()).await?;
                 send_stream.write_all(b"\n").await?;
                 continue;
             }
         };
         
-        tracing::debug!("Handling protocol {:?} from peer {}", protocol_json, peer_key.id52());
+        tracing::debug!("Handling protocol {:?} from peer {}", wrapper.protocol, peer_key.id52());
         
         // Convert data back to JSON string for handler
-        let request_json = serde_json::to_string(&data_json).unwrap_or_else(|e| {
+        let request_json = serde_json::to_string(&wrapper.data).unwrap_or_else(|e| {
             format!("Failed to serialize data: {}", e)
         });
         
@@ -226,7 +218,7 @@ async fn handle_connection(
         let response_json = handler(request_json).await;
         
         // Send response (with safety check in case handler tries to send multiple)
-        match send_response(&mut send_stream, &response_json, &peer_key, &protocol_json).await {
+        match send_response(&mut send_stream, &response_json, &peer_key, &wrapper.protocol).await {
             Ok(_) => {
                 tracing::debug!("Successfully sent response to peer {}", peer_key.id52());
             }

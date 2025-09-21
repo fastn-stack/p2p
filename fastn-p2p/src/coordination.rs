@@ -104,6 +104,7 @@ where
         })?;
 
     // Receive and deserialize response
+    // We use next_string here because we need to try deserializing as two different types
     let response_json = fastn_net::next_string(&mut recv_stream)
         .await
         .map_err(|source| CallError::Receive { source })?;

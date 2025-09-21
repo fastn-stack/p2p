@@ -1,3 +1,19 @@
+## Project Goals
+
+This project rebuilds production CLIs (`expose_http` and `http_bridge`) from malai using fastn-p2p. These CLIs are production-ready tools used by many, making them perfect test cases for evaluating our P2P design.
+
+### Current Challenge
+
+The existing malai CLIs have issues with HTTP request/response handling - they buffer instead of streaming request/response bodies concurrently. Our goal is to fix these streaming issues while simplifying the codebase through better P2P abstractions.
+
+### Development Approach
+
+- **Small commits**: 20-50 lines max (100 absolute max) for thorough code review
+- **Production focus**: Rebuilding real, used CLIs instead of toy examples  
+- **Incremental design**: Let the implementation drive the API design
+- **Clean abstractions**: Simplify complex P2P patterns through better APIs
+- **Fresh start**: Previous attempt went in wrong directions, starting from scratch
+
 # malai-next: Production-Grade HTTP over P2P
 
 Fresh implementation of malai's HTTP proxy functionality (expose_http/http_bridge) using the new fastn-p2p API. 
