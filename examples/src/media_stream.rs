@@ -91,6 +91,14 @@ async fn run_publisher(
         println!("📝 Creating test audio file: {}", mp3_file);
         create_test_audio(&mp3_file).await?;
     }
+    
+    // Show MP3 info at startup
+    if let Ok((_, sample_rate, channels)) = load_mp3_file_with_format(&mp3_file).await {
+        let file_size = std::fs::metadata(&mp3_file).map(|m| m.len()).unwrap_or(0);
+        println!("📀 Audio file info:");
+        println!("   📦 File: {} ({:.1} KB)", mp3_file, file_size as f64 / 1024.0);
+        println!("   🎵 Format: {}Hz, {} channel(s)", sample_rate, channels);
+    }
 
     fastn_p2p::listen(private_key)
         .handle_streams(MediaProtocol::AudioStream, mp3_file, audio_publisher_handler)
