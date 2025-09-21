@@ -10,7 +10,7 @@
 //!   media_stream subscriber <id52>              # Subscribe to media stream
 
 use std::time::{Duration, Instant};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 use tokio::time::interval;
 
@@ -137,7 +137,7 @@ async fn run_subscriber(
             eprintln!("   - Publisher ID is correct");
             eprintln!("   - Both machines can reach the internet");
             eprintln!("   - No firewall blocking P2P traffic");
-            return Err(e);
+            return Err(Box::new(e));
         }
     };
 
@@ -485,7 +485,7 @@ fn decode_with_symphonia(file_data: &[u8]) -> Result<(Vec<u8>, u32, u16), MediaE
     let cursor = std::io::Cursor::new(file_data_owned);
     let mss = MediaSourceStream::new(Box::new(cursor), Default::default());
     
-    let mut hint = Hint::new();
+    let hint = Hint::new();
     // Let symphonia probe the format
     
     let meta_opts = MetadataOptions::default();
