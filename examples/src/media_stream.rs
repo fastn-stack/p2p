@@ -21,7 +21,7 @@ pub enum MediaProtocol {
 }
 
 // Audio chunk for streaming
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct AudioChunk {
     pub sequence: u64,
     pub timestamp: u64, // Microseconds since stream start
@@ -41,6 +41,9 @@ pub struct StreamStats {
     pub last_chunk_time: Option<Instant>,
     pub chunks_dropped: u64,
     pub last_sequence: u64,
+    // Jitter tracking
+    pub inter_arrival_times: Vec<u64>, // Microseconds between chunks
+    pub expected_interval_us: u64,     // Expected microseconds between chunks
 }
 
 // Custom error type for media operations
@@ -132,9 +135,11 @@ async fn run_subscriber(
 
     let mut stats = StreamStats::default();
     stats.start_time = Some(Instant::now());
+    // Set expected interval for jitter measurement (will be updated from chunk timing)
+    stats.expected_interval_us = 50000; // 50ms default
 
-    // Audio playback buffer
-    let (audio_tx, mut audio_rx) = mpsc::channel::<AudioChunk>(100);
+    // Audio playback buffer - larger buffer to reduce jitter
+    let (audio_tx, mut audio_rx) = mpsc::channel::<AudioChunk>(1000);
 
     // Spawn audio player task
     let sink = std::sync::Arc::new(sink);
@@ -168,10 +173,21 @@ async fn run_subscriber(
 
         match bincode::deserialize::<AudioChunk>(&chunk_data) {
             Ok(chunk) => {
-                // Update statistics
+                // Update statistics and calculate jitter
                 stats.chunks_received += 1;
                 stats.bytes_received += chunk.data.len() as u64;
-                stats.last_chunk_time = Some(Instant::now());
+                
+                let now = Instant::now();
+                if let Some(last_time) = stats.last_chunk_time {
+                    let inter_arrival_us = now.duration_since(last_time).as_micros() as u64;
+                    stats.inter_arrival_times.push(inter_arrival_us);
+                    
+                    // Update expected interval from chunk timing data
+                    if stats.chunks_received > 1 {
+                        stats.expected_interval_us = chunk.timestamp / (chunk.sequence + 1); // Average expected
+                    }
+                }
+                stats.last_chunk_time = Some(now);
                 
                 // Check for dropped chunks
                 if chunk.sequence > stats.last_sequence + 1 {
@@ -182,9 +198,14 @@ async fn run_subscriber(
                 }
                 stats.last_sequence = chunk.sequence;
 
-                // Send to audio player
-                if audio_tx.send(chunk).await.is_err() {
-                    eprintln!("⚠️ Audio buffer full, dropping chunk");
+                // Send to audio player with buffering
+                let sequence_for_error = chunk.sequence;
+                if audio_tx.try_send(chunk.clone()).is_err() {
+                    // Buffer full - wait a bit then try again to avoid dropping
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                    if audio_tx.try_send(chunk).is_err() {
+                        eprintln!("⚠️ Audio buffer full, dropping chunk {}", sequence_for_error);
+                    }
                 }
 
                 // Print stats every 100 chunks
@@ -201,13 +222,28 @@ async fn run_subscriber(
         }
     }
 
-    // Calculate final metrics
+    // Calculate final metrics including jitter
     let total_duration = stats.start_time.unwrap().elapsed().as_secs_f64();
     let avg_throughput_kbps = (stats.bytes_received as f64 * 8.0) / total_duration / 1000.0;
     let packet_loss_rate = if stats.chunks_received > 0 {
         (stats.chunks_dropped as f64 / stats.chunks_received as f64) * 100.0
     } else {
         0.0
+    };
+    
+    // Calculate jitter (standard deviation of inter-arrival times)
+    let (avg_jitter_ms, jitter_stddev_ms) = if stats.inter_arrival_times.len() > 1 {
+        let avg_us = stats.inter_arrival_times.iter().sum::<u64>() as f64 / stats.inter_arrival_times.len() as f64;
+        let variance = stats.inter_arrival_times.iter()
+            .map(|&x| {
+                let diff = x as f64 - avg_us;
+                diff * diff
+            })
+            .sum::<f64>() / stats.inter_arrival_times.len() as f64;
+        let stddev_us = variance.sqrt();
+        (avg_us / 1000.0, stddev_us / 1000.0) // Convert to milliseconds
+    } else {
+        (0.0, 0.0)
     };
     
     println!("");
@@ -217,7 +253,20 @@ async fn run_subscriber(
     println!("   💾 Data received: {:.1} KB", stats.bytes_received as f64 / 1024.0);
     println!("   🚀 Average throughput: {:.0} kbps", avg_throughput_kbps);
     println!("   📉 Packet loss: {:.2}%", packet_loss_rate);
-    println!("   🔊 Audio quality: {}", if packet_loss_rate < 1.0 { "Excellent" } else if packet_loss_rate < 5.0 { "Good" } else { "Poor" });
+    println!("   📊 Jitter: {:.1}ms avg, {:.1}ms stddev", avg_jitter_ms, jitter_stddev_ms);
+    
+    let quality = if packet_loss_rate > 5.0 {
+        "Poor"
+    } else if jitter_stddev_ms > 100.0 {
+        "Poor (High Jitter)"
+    } else if jitter_stddev_ms > 50.0 {
+        "Fair (Moderate Jitter)"
+    } else if packet_loss_rate < 1.0 && jitter_stddev_ms < 20.0 {
+        "Excellent"
+    } else {
+        "Good"
+    };
+    println!("   🔊 Audio quality: {}", quality);
     
     if stats.chunks_dropped > 0 {
         println!("   ⚠️  {} chunks dropped - may cause audio gaps", stats.chunks_dropped);
@@ -239,8 +288,8 @@ async fn audio_publisher_handler(
     let mut stats = StreamStats::default();
     stats.start_time = Some(Instant::now());
     
-    // Stream audio chunks at regular intervals
-    let chunk_size = 4096; // 4KB chunks
+    // Stream audio chunks at regular intervals - larger chunks for better quality
+    let chunk_size = 8192; // 8KB chunks for smoother streaming
     let mut sequence = 0u64;
     let stream_start = Instant::now();
     
@@ -253,7 +302,9 @@ async fn audio_publisher_handler(
     println!("   📦 Chunk size: {} bytes = {:.1}ms of audio", chunk_size, chunk_duration_ms);
     println!("   ⏱️  Expected stream duration: {:.1}s", audio_data.len() as f64 / bytes_per_second as f64);
     
-    let mut interval = interval(Duration::from_millis(chunk_duration_ms.max(10))); // At least 10ms
+    // Use slightly faster timing to prevent underruns
+    let adjusted_timing = (chunk_duration_ms as f64 * 0.95) as u64; // 5% faster
+    let mut interval = interval(Duration::from_millis(adjusted_timing.max(5))); // At least 5ms
     
     for chunk_data in audio_data.chunks(chunk_size) {
         interval.tick().await;
