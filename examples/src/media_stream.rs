@@ -116,15 +116,30 @@ async fn run_subscriber(
     let private_key = fastn_p2p::SecretKey::generate();
 
     println!("🎧 Audio Subscriber connecting to: {}", target);
-    println!("🔊 Starting audio playback...");
+    println!("🔍 Attempting P2P connection...");
 
     // Connect to the publisher
-    let mut session = fastn_p2p::client::connect(
+    let mut session = match fastn_p2p::client::connect(
         private_key,
         target,
         MediaProtocol::AudioStream,
         (), // No data needed for subscription
-    ).await?;
+    ).await {
+        Ok(session) => {
+            println!("✅ P2P connection established!");
+            println!("🔊 Starting audio playback...");
+            session
+        }
+        Err(e) => {
+            eprintln!("❌ Failed to connect to publisher: {}", e);
+            eprintln!("💡 Check that:");
+            eprintln!("   - Publisher is running");
+            eprintln!("   - Publisher ID is correct");
+            eprintln!("   - Both machines can reach the internet");
+            eprintln!("   - No firewall blocking P2P traffic");
+            return Err(e);
+        }
+    };
 
     // Start audio playback system
     let (_stream, stream_handle) = rodio::OutputStream::try_default()
@@ -154,10 +169,31 @@ async fn run_subscriber(
     });
 
     // Receive and process audio chunks
+    let mut no_data_timeout = tokio::time::interval(Duration::from_secs(5));
+    no_data_timeout.tick().await; // First tick is immediate
+    
     loop {
         let mut chunk_size_buf = [0u8; 4];
-        if session.stdout.read_exact(&mut chunk_size_buf).await.is_err() {
-            break;
+        
+        // Try to read with timeout to detect connection issues
+        tokio::select! {
+            result = session.stdout.read_exact(&mut chunk_size_buf) => {
+                if result.is_err() {
+                    println!("📡 Stream ended or connection closed");
+                    break;
+                }
+                no_data_timeout.reset(); // Reset timeout on successful read
+            }
+            _ = no_data_timeout.tick() => {
+                if stats.chunks_received == 0 {
+                    eprintln!("⏰ No audio data received for 5 seconds");
+                    eprintln!("💡 Connection may have failed or publisher not streaming");
+                    break;
+                } else {
+                    eprintln!("⏰ No new data for 5 seconds, stream may have ended");
+                    break;
+                }
+            }
         }
         
         let chunk_size = u32::from_le_bytes(chunk_size_buf) as usize;
