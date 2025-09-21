@@ -86,6 +86,10 @@ fi
 
 echo -e "${GREEN}✅ Server started with ID52: $SERVER_ID52${NC}"
 
+# Give discovery services time to register the server
+echo "Waiting for discovery services to register server..."
+sleep 3
+
 # Test 1: Send a simple message
 echo -e "\n${YELLOW}📤 Test 1: Sending 'Hello P2P!' message...${NC}"
 OUTPUT=$(./target/release/request_response client "$SERVER_ID52" "Hello P2P!" 2>&1 | tail -5)

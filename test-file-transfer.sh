@@ -88,6 +88,10 @@ fi
 
 echo -e "${GREEN}✅ Server started with ID52: $SERVER_ID52${NC}"
 
+# Give discovery services time to register the server
+echo "Waiting for discovery services to register server..."
+sleep 3
+
 # Test 1: Download existing file
 echo -e "\n${YELLOW}📥 Test 1: Downloading 'test_file.txt'...${NC}"
 OUTPUT=$(./target/release/file_transfer client "$SERVER_ID52" "test_file.txt" 2>&1)

@@ -46,6 +46,10 @@ if [ -z "$DAEMON_ID" ]; then
 fi
 
 echo -e "${GREEN}✅ Daemon started with ID52: $DAEMON_ID${NC}"
+
+# Give discovery services time to register the daemon
+echo "Waiting for discovery services to register daemon..."
+sleep 3
 echo ""
 
 # Function to test a command

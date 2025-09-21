@@ -25,7 +25,7 @@ pub async fn get_endpoint(secret_key: fastn_id52::SecretKey) -> eyre::Result<iro
         Err(e) => {
             // https://github.com/n0-computer/iroh/issues/2741
             // this is why you MUST NOT use anyhow::Error etc. in library code.
-            Err(eyre::anyhow!("failed to bind to iroh network2: {e:?}"))
+            Err(eyre::anyhow!("failed to bind to iroh network: {e:?}"))
         }
     }
 }
