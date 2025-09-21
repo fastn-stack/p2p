@@ -5,6 +5,8 @@ pub struct ServerBuilder {
     private_key: fastn_id52::SecretKey,
     request_handlers: std::collections::HashMap<serde_json::Value, RequestHandler>,
     stream_handlers: std::collections::HashMap<serde_json::Value, StreamHandler>,
+    connection_auth: Option<ConnectionAuthHook>,
+    stream_auth: Option<StreamAuthHook>,
     server_task: Option<std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error>>> + Send>>>,
 }
 
@@ -25,14 +27,84 @@ type StreamHandler = Box<
         + Sync,
 >;
 
+/// Connection authorization hook - called when a peer connects
+/// Returns true to allow connection, false to deny
+type ConnectionAuthHook = Box<
+    dyn Fn(
+        &fastn_id52::PublicKey,  // peer connecting
+    ) -> bool
+        + Send
+        + Sync,
+>;
+
+/// Stream authorization hook - called when a peer opens a stream
+/// Returns true to allow stream, false to deny
+type StreamAuthHook = Box<
+    dyn Fn(
+        &fastn_id52::PublicKey,  // peer making the request
+        &serde_json::Value,      // protocol being requested
+        &serde_json::Value,      // initial data sent with request
+    ) -> bool
+        + Send
+        + Sync,
+>;
+
 impl ServerBuilder {
     pub fn new(private_key: fastn_id52::SecretKey) -> Self {
         Self {
             private_key,
             request_handlers: std::collections::HashMap::new(),
             stream_handlers: std::collections::HashMap::new(),
+            connection_auth: None,
+            stream_auth: None,
             server_task: None,
         }
+    }
+
+    /// Set connection authorization hook - called when any peer connects
+    /// 
+    /// # Example
+    /// ```rust
+    /// fastn_p2p::listen(key)
+    ///     .with_connection_auth(|peer| {
+    ///         // Only allow connections from known peers
+    ///         ALLOWED_PEERS.contains(peer)
+    ///     })
+    ///     .handle_requests(Protocol::Echo, echo_handler)
+    ///     .await?;
+    /// ```
+    pub fn with_connection_auth<F>(mut self, auth_fn: F) -> Self
+    where
+        F: Fn(&fastn_id52::PublicKey) -> bool + Send + Sync + 'static,
+    {
+        self.connection_auth = Some(Box::new(auth_fn));
+        self
+    }
+    
+    /// Set stream authorization hook - called when a peer opens a stream
+    /// 
+    /// # Example
+    /// ```rust
+    /// fastn_p2p::listen(key)
+    ///     .with_stream_auth(|peer, protocol, data| {
+    ///         // Allow different access based on protocol
+    ///         match protocol {
+    ///             p if p == &json!("Admin") => ADMIN_PEERS.contains(peer),
+    ///             _ => true
+    ///         }
+    ///     })
+    ///     .handle_requests(Protocol::Echo, echo_handler)
+    ///     .await?;
+    /// ```
+    pub fn with_stream_auth<F>(mut self, auth_fn: F) -> Self
+    where
+        F: Fn(&fastn_id52::PublicKey, &serde_json::Value, &serde_json::Value) -> bool
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.stream_auth = Some(Box::new(auth_fn));
+        self
     }
 
     /// Add a request/response handler for a protocol
@@ -150,11 +222,19 @@ impl std::future::Future for ServerBuilder {
             let private_key = self.private_key.clone();
             let request_handlers = std::mem::take(&mut self.request_handlers);
             let stream_handlers = std::mem::take(&mut self.stream_handlers);
+            let connection_auth = self.connection_auth.take();
+            let stream_auth = self.stream_auth.take();
             
             println!("🎧 Server listening on: {}", private_key.id52());
             
             // Create the server future
-            self.server_task = Some(Box::pin(run_server(private_key, request_handlers, stream_handlers)));
+            self.server_task = Some(Box::pin(run_server(
+                private_key, 
+                request_handlers, 
+                stream_handlers, 
+                connection_auth,
+                stream_auth
+            )));
         }
         
         // Poll the server task
@@ -170,6 +250,8 @@ async fn run_server(
     private_key: fastn_id52::SecretKey,
     request_handlers: std::collections::HashMap<serde_json::Value, RequestHandler>,
     stream_handlers: std::collections::HashMap<serde_json::Value, StreamHandler>,
+    connection_auth: Option<ConnectionAuthHook>,
+    stream_auth: Option<StreamAuthHook>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Get endpoint for listening
     let endpoint = fastn_net::get_endpoint(private_key).await?;
@@ -177,6 +259,8 @@ async fn run_server(
     // Wrap handlers in Arc for sharing across tasks
     let request_handlers = std::sync::Arc::new(request_handlers);
     let stream_handlers = std::sync::Arc::new(stream_handlers);
+    let connection_auth = connection_auth.map(std::sync::Arc::new);
+    let stream_auth = stream_auth.map(std::sync::Arc::new);
     
     loop {
         tokio::select! {
@@ -195,8 +279,16 @@ async fn run_server(
                 
                 let request_handlers = request_handlers.clone();
                 let stream_handlers = stream_handlers.clone();
+                let connection_auth = connection_auth.clone();
+                let stream_auth = stream_auth.clone();
                 crate::spawn(async move {
-                    if let Err(e) = handle_connection(conn, &request_handlers, &stream_handlers).await {
+                    if let Err(e) = handle_connection(
+                        conn, 
+                        &request_handlers, 
+                        &stream_handlers, 
+                        connection_auth.as_deref(),
+                        stream_auth.as_deref()
+                    ).await {
                         tracing::error!("Connection error: {}", e);
                     }
                 });
@@ -218,12 +310,24 @@ async fn handle_connection(
     conn: iroh::endpoint::Incoming,
     request_handlers: &std::collections::HashMap<serde_json::Value, RequestHandler>,
     stream_handlers: &std::collections::HashMap<serde_json::Value, StreamHandler>,
+    connection_auth: Option<&ConnectionAuthHook>,
+    stream_auth: Option<&StreamAuthHook>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let conn = conn.await?;
     
     // Get peer's ID52 for logging and security
     let peer_key = fastn_net::get_remote_id52(&conn).await?;
     tracing::debug!("Connection established with peer: {}", peer_key.id52());
+    
+    // Check connection-level authorization
+    if let Some(auth) = connection_auth {
+        if !auth(&peer_key) {
+            tracing::warn!("Connection denied for peer {}", peer_key.id52());
+            // Close connection immediately
+            conn.close(0u8.into(), b"Unauthorized");
+            return Ok(());
+        }
+    }
     
     loop {
         // Accept bidirectional stream - accept fastn-p2p protocol
@@ -252,6 +356,19 @@ async fn handle_connection(
                 continue;
             }
         };
+        
+        // Check stream-level authorization if hook is provided
+        if let Some(auth) = stream_auth {
+            if !auth(&peer_key, &wrapper.protocol, &wrapper.data) {
+                tracing::warn!("Stream authorization denied for peer {} protocol {:?}", 
+                            peer_key.id52(), wrapper.protocol);
+                let error_msg = "Authorization denied";
+                send_stream.write_all(error_msg.as_bytes()).await?;
+                send_stream.write_all(b"\n").await?;
+                send_stream.finish()?;
+                continue;
+            }
+        }
         
         // Check if it's a streaming or request handler
         let is_streaming = stream_handlers.contains_key(&wrapper.protocol);
