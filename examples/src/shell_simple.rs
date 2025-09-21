@@ -74,6 +74,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_daemon(private_key: fastn_p2p::SecretKey) -> Result<(), Box<dyn std::error::Error>> {
     println!("🐚 Shell daemon listening on: {}", private_key.id52());
     println!("⚠️  WARNING: This allows remote command execution!");
+    println!("");
+    println!("🚀 To execute commands from another machine, run:");
+    println!("   cargo run --bin shell_simple -- exec {} <command>", private_key.id52());
+    println!("   Example: cargo run --bin shell_simple -- exec {} \"ls -la\"", private_key.id52());
+    println!("");
     
     fastn_p2p::listen(private_key)
         .handle_streams(ShellProtocol::Execute, (), shell_handler)

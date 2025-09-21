@@ -79,6 +79,10 @@ async fn run_publisher(
     println!("🎵 Audio Publisher starting...");
     println!("📁 MP3 file: {}", mp3_file);
     println!("🎧 Publisher listening on: {}", private_key.id52());
+    println!("");
+    println!("🚀 To connect from another machine, run:");
+    println!("   cargo run --bin media_stream -- client {}", private_key.id52());
+    println!("");
     
     // Check if MP3 file exists, if not create a test tone
     if !std::path::Path::new(&mp3_file).exists() {

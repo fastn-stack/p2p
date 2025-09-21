@@ -49,6 +49,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn run_server(private_key: fastn_p2p::SecretKey) -> Result<(), Box<dyn std::error::Error>> {
     println!("🎧 Server listening on: {}", private_key.id52());
+    println!("");
+    println!("🚀 To send a request from another machine, run:");
+    println!("   cargo run --bin request_response -- client {} \"Your message here\"", private_key.id52());
+    println!("");
 
     fastn_p2p::listen(private_key)
         .handle_requests(EchoProtocol::Echo, echo_handler)

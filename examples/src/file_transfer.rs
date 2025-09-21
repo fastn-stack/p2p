@@ -41,6 +41,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_server(private_key: fastn_p2p::SecretKey) -> Result<(), Box<dyn std::error::Error>> {
     println!("📁 File server listening on: {}", private_key.id52());
     println!("⚠️  Security: Only files in current directory are served!");
+    println!("");
+    println!("🚀 To download a file from another machine, run:");
+    println!("   cargo run --bin file_transfer -- client {} <filename>", private_key.id52());
+    println!("");
 
     fastn_p2p::listen(private_key)
         .handle_streams(FileProtocol::Download, (), file_stream_handler)
