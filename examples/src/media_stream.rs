@@ -278,7 +278,7 @@ async fn load_mp3_file(filename: &str) -> Result<Vec<u8>, MediaError> {
         .map_err(|_| MediaError::FileNotFound(filename.to_string()))?;
     
     // Use minimp3 to decode MP3 to PCM
-    let mut decoder = minimp3::Decoder::new(&file_data);
+    let mut decoder = minimp3::Decoder::new(std::io::Cursor::new(&file_data));
     let mut pcm_data = Vec::new();
     let mut sample_rate = 44100;
     let mut channels = 2;
@@ -287,12 +287,11 @@ async fn load_mp3_file(filename: &str) -> Result<Vec<u8>, MediaError> {
     loop {
         match decoder.next_frame() {
             Ok(frame) => {
-                sample_rate = frame.sample_rate;
-                channels = frame.channels;
-                // Convert f32 samples to i16
+                sample_rate = frame.sample_rate as u32;
+                channels = frame.channels as u16;
+                // Convert i16 samples to bytes
                 for sample in frame.data {
-                    let sample_i16 = (sample * 32767.0).clamp(-32767.0, 32767.0) as i16;
-                    pcm_data.extend_from_slice(&sample_i16.to_le_bytes());
+                    pcm_data.extend_from_slice(&sample.to_le_bytes());
                 }
             }
             Err(minimp3::Error::Eof) => break,
