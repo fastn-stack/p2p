@@ -2,8 +2,16 @@
 
 # End-to-end test suite for fastn-p2p
 # Runs all integration tests to verify P2P functionality
+# Usage: ./e2e-test.sh [--retry]
 
 set -e  # Exit on error
+
+# Check for retry flag to pass to individual tests
+RETRY_FLAG=""
+if [[ "$1" == "--retry" ]]; then
+    RETRY_FLAG="--retry"
+    echo "Note: Retry mode enabled for all tests"
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -28,7 +36,7 @@ run_test() {
     echo -e "${YELLOW}📦 Running ${test_name}...${NC}"
     echo "----------------------------------------"
     
-    if bash "$test_script"; then
+    if bash "$test_script" $RETRY_FLAG; then
         echo -e "${GREEN}✅ ${test_name} PASSED${NC}"
         ((TESTS_PASSED++))
     else

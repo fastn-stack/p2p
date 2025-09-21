@@ -2,8 +2,16 @@
 
 # Test script for shell_simple example
 # Tests remote command execution over P2P
+# Usage: ./test-shell-simple.sh [--retry]
 
 set -e
+
+# Check for retry flag
+RETRY_ON_DISCOVERY=false
+if [[ "$1" == "--retry" ]]; then
+    RETRY_ON_DISCOVERY=true
+    echo "Note: Retry mode enabled for discovery issues"
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -51,7 +59,8 @@ test_command() {
     
     OUTPUT=$(./target/release/shell_simple exec "$DAEMON_ID" $cmd 2>&1 || true)
     
-    if echo "$OUTPUT" | grep -q "Discovery"; then
+    # Retry only if flag is set and discovery fails
+    if [[ "$RETRY_ON_DISCOVERY" == true ]] && echo "$OUTPUT" | grep -q "Discovery"; then
         echo -e "${YELLOW}⚠️  Discovery issue - retrying...${NC}"
         sleep 2
         OUTPUT=$(./target/release/shell_simple exec "$DAEMON_ID" $cmd 2>&1 || true)

@@ -2,8 +2,16 @@
 
 # Test script for request-response example
 # This script starts a server, sends a request, and verifies the response
+# Usage: ./test-request-response.sh [--retry]
 
 set -e  # Exit on error
+
+# Check for retry flag
+RETRY_ON_DISCOVERY=false
+if [[ "$1" == "--retry" ]]; then
+    RETRY_ON_DISCOVERY=true
+    echo "Note: Retry mode enabled for discovery issues"
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -82,6 +90,13 @@ echo -e "${GREEN}✅ Server started with ID52: $SERVER_ID52${NC}"
 echo -e "\n${YELLOW}📤 Test 1: Sending 'Hello P2P!' message...${NC}"
 OUTPUT=$(./target/release/request_response client "$SERVER_ID52" "Hello P2P!" 2>&1 | tail -5)
 
+# Retry only if flag is set and discovery fails
+if [[ "$RETRY_ON_DISCOVERY" == true ]] && echo "$OUTPUT" | grep -q "Discovery"; then
+    echo -e "${YELLOW}⚠️  Discovery issue - retrying after 2 seconds...${NC}"
+    sleep 2
+    OUTPUT=$(./target/release/request_response client "$SERVER_ID52" "Hello P2P!" 2>&1 | tail -5)
+fi
+
 if echo "$OUTPUT" | grep -q "✅ Response: Echo: Hello P2P!"; then
     echo -e "${GREEN}✅ Test 1 passed: Got expected echo response${NC}"
 else
@@ -94,6 +109,13 @@ fi
 # Test 2: Send a different message
 echo -e "\n${YELLOW}📤 Test 2: Sending 'Testing 123' message...${NC}"
 OUTPUT=$(./target/release/request_response client "$SERVER_ID52" "Testing 123" 2>&1 | tail -5)
+
+# Retry only if flag is set and discovery fails
+if [[ "$RETRY_ON_DISCOVERY" == true ]] && echo "$OUTPUT" | grep -q "Discovery"; then
+    echo -e "${YELLOW}⚠️  Discovery issue - retrying after 2 seconds...${NC}"
+    sleep 2
+    OUTPUT=$(./target/release/request_response client "$SERVER_ID52" "Testing 123" 2>&1 | tail -5)
+fi
 
 if echo "$OUTPUT" | grep -q "✅ Response: Echo: Testing 123"; then
     echo -e "${GREEN}✅ Test 2 passed: Got expected echo response${NC}"
