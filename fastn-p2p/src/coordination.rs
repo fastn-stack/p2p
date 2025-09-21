@@ -58,10 +58,8 @@ where
     OUTPUT: for<'de> serde::Deserialize<'de>,
     ERROR: for<'de> serde::Deserialize<'de>,
 {
-    // Convert user protocol to fastn_net::Protocol::Generic
-    let json_value =
-        serde_json::to_value(&protocol).map_err(|e| CallError::Serialization { source: e })?;
-    let net_protocol = fastn_net::Protocol::Generic(json_value);
+    // Use hardcoded fastn-p2p protocol for all requests
+    let net_protocol = fastn_net::Protocol::Generic(serde_json::Value::String("fastn-p2p".to_string()));
 
     // Get endpoint for the sender
     let endpoint = fastn_net::get_endpoint(sender)
@@ -79,9 +77,17 @@ where
     .await
     .map_err(|source| CallError::Stream { source })?;
 
-    // Serialize and send request
-    let request_json =
-        serde_json::to_string(&input).map_err(|source| CallError::Serialization { source })?;
+    // Convert user protocol to JSON for embedding in request
+    let protocol_json =
+        serde_json::to_value(&protocol).map_err(|e| CallError::Serialization { source: e })?;
+
+    // Create wrapper request with protocol and data
+    let wrapper_request = serde_json::json!({
+        "protocol": protocol_json,
+        "data": input
+    });
+    let request_json = serde_json::to_string(&wrapper_request)
+        .map_err(|source| CallError::Serialization { source })?;
 
     // Send JSON followed by newline
     send_stream
