@@ -20,7 +20,10 @@ pub fn get_or_create_persistent_key(example_name: &str) -> fastn_p2p::SecretKey 
     // Try to load existing key (stored as secret bytes)
     if Path::new(&key_file).exists() {
         if let Ok(key_bytes) = std::fs::read(&key_file) {
-            if let Ok(secret_key) = fastn_p2p::SecretKey::from_bytes(&key_bytes) {
+            if key_bytes.len() == 32 {
+                let mut bytes_array = [0u8; 32];
+                bytes_array.copy_from_slice(&key_bytes);
+                let secret_key = fastn_p2p::SecretKey::from_bytes(&bytes_array);
                 println!("🔑 Using persistent key from: {}", key_file);
                 println!("   (Server ID: {})", secret_key.id52());
                 return secret_key;

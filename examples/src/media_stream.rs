@@ -226,8 +226,8 @@ async fn audio_publisher_handler(
 ) -> Result<(), MediaError> {
     println!("🔊 New subscriber connected: {}", session.peer().id52());
     
-    // Read and decode MP3 file
-    let audio_data = load_mp3_file(&mp3_file).await?;
+    // Read and decode MP3 file to get actual audio format
+    let (audio_data, sample_rate, channels) = load_mp3_file_with_format(&mp3_file).await?;
     let mut stats = StreamStats::default();
     stats.start_time = Some(Instant::now());
     
@@ -236,10 +236,15 @@ async fn audio_publisher_handler(
     let mut sequence = 0u64;
     let stream_start = Instant::now();
     
-    // Calculate proper timing for real-time streaming
-    // For 44.1kHz stereo 16-bit: 4KB = ~23ms of audio
-    let bytes_per_second = 44100 * 2 * 2; // sample_rate * channels * bytes_per_sample
+    // Calculate proper timing based on ACTUAL audio format
+    let bytes_per_second = sample_rate as u64 * channels as u64 * 2; // 2 bytes per sample (i16)
     let chunk_duration_ms = (chunk_size as f64 / bytes_per_second as f64 * 1000.0) as u64;
+    
+    println!("🎵 Streaming config:");
+    println!("   🔊 Format: {}Hz, {} channel(s), 16-bit", sample_rate, channels);
+    println!("   📦 Chunk size: {} bytes = {:.1}ms of audio", chunk_size, chunk_duration_ms);
+    println!("   ⏱️  Expected stream duration: {:.1}s", audio_data.len() as f64 / bytes_per_second as f64);
+    
     let mut interval = interval(Duration::from_millis(chunk_duration_ms.max(10))); // At least 10ms
     
     for chunk_data in audio_data.chunks(chunk_size) {
@@ -300,8 +305,8 @@ async fn audio_publisher_handler(
     Ok(())
 }
 
-// Load MP3 file and decode to PCM audio data
-async fn load_mp3_file(filename: &str) -> Result<Vec<u8>, MediaError> {
+// Load MP3 file and decode to PCM audio data with format info
+async fn load_mp3_file_with_format(filename: &str) -> Result<(Vec<u8>, u32, u16), MediaError> {
     println!("📁 Loading and decoding MP3 file: {}", filename);
     
     let file_data = tokio::fs::read(filename).await
@@ -349,7 +354,7 @@ async fn load_mp3_file(filename: &str) -> Result<Vec<u8>, MediaError> {
     println!("   📻 Channels: {}", channels);
     println!("   📡 Bitrate: {:.0} kbps", bitrate);
     
-    Ok(pcm_data)
+    Ok((pcm_data, sample_rate, channels))
 }
 
 
