@@ -90,6 +90,7 @@ where
         .map_err(|source| CallError::Serialization { source })?;
 
     // Send JSON followed by newline
+    tracing::debug!("Sending request: {} bytes", request_json.len());
     send_stream
         .write_all(request_json.as_bytes())
         .await
@@ -102,12 +103,14 @@ where
         .map_err(|e| CallError::Send {
             source: eyre::Error::from(e),
         })?;
+    tracing::debug!("Request sent, waiting for response");
 
     // Receive and deserialize response
     // We use next_string here because we need to try deserializing as two different types
     let response_json = fastn_net::next_string(&mut recv_stream)
         .await
         .map_err(|source| CallError::Receive { source })?;
+    tracing::debug!("Received response: {} bytes", response_json.len());
 
     // Try to deserialize as success response first
     if let Ok(success_response) = serde_json::from_str::<OUTPUT>(&response_json) {

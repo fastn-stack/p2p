@@ -4,6 +4,7 @@
 pub struct ServerBuilder {
     private_key: fastn_id52::SecretKey,
     request_handlers: std::collections::HashMap<serde_json::Value, RequestHandler>,
+    server_task: Option<std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error>>> + Send>>>,
 }
 
 type RequestHandler = Box<
@@ -17,6 +18,7 @@ impl ServerBuilder {
         Self {
             private_key,
             request_handlers: std::collections::HashMap::new(),
+            server_task: None,
         }
     }
 
@@ -87,28 +89,26 @@ impl std::future::Future for ServerBuilder {
     type Output = Result<(), Box<dyn std::error::Error>>;
 
     fn poll(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        // We need to spawn the actual server task
-        let this = self.get_mut();
+        // If we haven't created the server task yet, create it
+        if self.server_task.is_none() {
+            let private_key = self.private_key.clone();
+            let handlers = std::mem::take(&mut self.request_handlers);
+            
+            println!("🎧 Server listening on: {}", private_key.id52());
+            
+            // Create the server future
+            self.server_task = Some(Box::pin(run_server(private_key, handlers)));
+        }
         
-        // Clone data for the spawned task
-        let private_key = this.private_key.clone();
-        let handlers = std::mem::take(&mut this.request_handlers);
-        
-        println!("🎧 Server listening on: {}", private_key.id52());
-        
-        // Spawn the server task
-        crate::spawn(async move {
-            if let Err(e) = run_server(private_key, handlers).await {
-                tracing::error!("Server error: {}", e);
-            }
-        });
-        
-        // Return Ready to indicate the "startup" is complete
-        // The actual server runs in the background task
-        std::task::Poll::Ready(Ok(()))
+        // Poll the server task
+        if let Some(ref mut task) = self.server_task {
+            std::pin::Pin::new(task).poll(cx)
+        } else {
+            unreachable!("server_task should be set above")
+        }
     }
 }
 
@@ -168,9 +168,12 @@ async fn handle_connection(
     tracing::debug!("Connection established with peer: {}", peer_key.id52());
     
     loop {
+        tracing::debug!("Waiting to accept bidirectional stream");
         // Accept bidirectional stream - accept fastn-p2p protocol
         let (protocol, mut send_stream, mut recv_stream) = 
             fastn_net::accept_bi(&conn, &[fastn_net::Protocol::Generic(serde_json::Value::String("fastn-p2p".to_string()))]).await?;
+        
+        tracing::debug!("Accepted stream with protocol: {:?}", protocol);
             
         // Verify this is fastn-p2p protocol
         match protocol {
@@ -215,19 +218,32 @@ async fn handle_connection(
         });
         
         // Call handler
+        tracing::debug!("Calling handler for protocol {:?}", wrapper.protocol);
         let response_json = handler(request_json).await;
+        tracing::debug!("Handler returned response: {} bytes", response_json.len());
         
         // Send response (with safety check in case handler tries to send multiple)
+        tracing::debug!("Sending response to peer {}", peer_key.id52());
         match send_response(&mut send_stream, &response_json, &peer_key, &wrapper.protocol).await {
             Ok(_) => {
                 tracing::debug!("Successfully sent response to peer {}", peer_key.id52());
             }
             Err(e) => {
                 tracing::error!("Failed to send response to peer {}: {}", peer_key.id52(), e);
+                break;
             }
         }
         
-        break; // One request per connection for now
+        // Signal that we're done sending by calling finish()
+        // This tells the client no more data will be sent on this stream
+        send_stream.finish()?;
+        tracing::debug!("Closed send stream");
+        
+        // Keep the connection alive by continuing to accept streams
+        // Even though we only handle one request, staying in the loop
+        // prevents the connection from being dropped prematurely
+        // We'll break when accept_bi fails (client closes connection)
+        tracing::debug!("Request handled, waiting for more or connection close");
     }
     
     Ok(())
