@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             private_key,
             config,
         } => {
-            let mp3_file = config.first().cloned().unwrap_or_else(|| "test_audio.mp3".to_string());
+            let mp3_file = config.first().cloned().unwrap_or_else(|| "examples/assets/test-audio.mp3".to_string());
             run_publisher(private_key, mp3_file).await
         }
         examples::Client { target, config: _ } => {
@@ -322,17 +322,26 @@ fn estimate_mp3_duration(data: &[u8]) -> f64 {
 
 // Create a test audio file (simple sine wave as MP3)
 async fn create_test_audio(filename: &str) -> Result<(), MediaError> {
-    println!("🎼 Generating test audio tone...");
+    println!("🎼 Generating test audio (musical scale)...");
     
-    // Generate a simple sine wave (440 Hz A note)
+    // Generate a musical scale instead of single tone for better quality testing
     let sample_rate = 44100;
-    let duration = 10; // 10 seconds
-    let frequency = 440.0; // A4 note
+    let duration = 10; // 10 seconds total
+    let notes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25]; // C major scale
     
     let mut samples = Vec::new();
+    let note_duration = duration as f32 / notes.len() as f32; // Each note duration
+    
     for i in 0..(sample_rate * duration) {
         let t = i as f32 / sample_rate as f32;
-        let sample = (2.0 * std::f32::consts::PI * frequency * t).sin();
+        let note_index = (t / note_duration) as usize % notes.len();
+        let frequency = notes[note_index];
+        
+        // Create a more pleasant sound with some harmonics
+        let fundamental = (2.0 * std::f32::consts::PI * frequency * t).sin();
+        let harmonic = 0.3 * (2.0 * std::f32::consts::PI * frequency * 2.0 * t).sin();
+        let sample = (fundamental + harmonic) * 0.7; // Reduce volume slightly
+        
         let sample_i16 = (sample * 32767.0) as i16;
         samples.extend_from_slice(&sample_i16.to_le_bytes());
     }
@@ -341,7 +350,7 @@ async fn create_test_audio(filename: &str) -> Result<(), MediaError> {
     // In a real implementation, you'd encode this as actual MP3
     tokio::fs::write(filename, &samples).await?;
     
-    println!("✅ Created test audio file: {} ({} bytes)", filename, samples.len());
+    println!("✅ Created test audio: C major scale ({} bytes, {}s)", samples.len(), duration);
     Ok(())
 }
 

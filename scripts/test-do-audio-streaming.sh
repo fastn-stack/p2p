@@ -195,19 +195,6 @@ log "Importing SSH key to Digital Ocean..."
 SSH_KEY_ID=$($DOCTL compute ssh-key import "$TEST_ID" --public-key-file "$TEST_SSH_KEY.pub" --format ID --no-header)
 success "SSH key imported: $SSH_KEY_ID"
 
-# Download high-quality MP3 if requested
-if [[ "$HIGH_QUALITY" == "true" ]]; then
-    log "Downloading high-quality MP3 for testing..."
-    # Download a royalty-free high-quality sample
-    curl -L "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" -o high_quality_audio.mp3 2>/dev/null || {
-        warn "Failed to download high-quality MP3, will use generated test tone"
-        HIGH_QUALITY=false
-    }
-    if [[ -f "high_quality_audio.mp3" ]]; then
-        MP3_SIZE=$(wc -c < high_quality_audio.mp3)
-        success "Downloaded high-quality MP3: ${MP3_SIZE} bytes"
-    fi
-fi
 
 # Build fastn-p2p locally first
 log "Building fastn-p2p locally..."
@@ -294,11 +281,33 @@ ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" << 'EOF'
 EOF
 success "Project cloned from GitHub"
 
-# Copy high-quality MP3 if available
-if [[ "$HIGH_QUALITY" == "true" ]] && [[ -f "high_quality_audio.mp3" ]]; then
-    log "Copying high-quality MP3 to droplet..."
-    scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no high_quality_audio.mp3 root@"$DROPLET_IP":/root/fastn-p2p/
-    success "High-quality MP3 copied"
+# Download high-quality MP3 directly on droplet
+if [[ "$HIGH_QUALITY" == "true" ]]; then
+    log "Downloading royalty-free audio sample on droplet..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" << 'EOF'
+        cd /root/fastn-p2p
+        # Try multiple sources for good quality audio samples
+        if curl -L "https://samplelib.com/lib/preview/mp3/sample-15s.mp3" -o high_quality_audio.mp3 2>/dev/null && [[ -s "high_quality_audio.mp3" ]]; then
+            echo "Downloaded samplelib 15s audio sample"
+        elif curl -L "https://archive.org/download/testmp3testfile/mpthreetest.mp3" -o high_quality_audio.mp3 2>/dev/null && [[ -s "high_quality_audio.mp3" ]]; then
+            echo "Downloaded archive.org test sample"
+        elif curl -L "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" -o high_quality_audio.mp3 2>/dev/null && [[ -s "high_quality_audio.mp3" ]]; then
+            echo "Downloaded bell ringing sample"
+        else
+            echo "Failed to download audio samples, will use generated test tone"
+            rm -f high_quality_audio.mp3
+            exit 1
+        fi
+        
+        # Show what we downloaded
+        ls -lh high_quality_audio.mp3
+EOF
+    if [[ $? -eq 0 ]]; then
+        success "High-quality audio downloaded on droplet"
+    else
+        warn "Failed to download audio, will use generated test tone"
+        HIGH_QUALITY=false
+    fi
 fi
 
 # Build on droplet
