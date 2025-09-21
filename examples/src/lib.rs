@@ -17,12 +17,13 @@ pub fn key_from_str_or_generate(
 pub fn get_or_create_persistent_key(example_name: &str) -> fastn_p2p::SecretKey {
     let key_file = format!(".fastn-{}.key", example_name);
     
-    // Try to load existing key
+    // Try to load existing key (stored as ID52 string)
     if Path::new(&key_file).exists() {
-        if let Ok(key_data) = std::fs::read_to_string(&key_file) {
-            if let Ok(key) = key_data.trim().parse::<fastn_p2p::SecretKey>() {
+        if let Ok(id52_string) = std::fs::read_to_string(&key_file) {
+            if let Ok(secret_key) = id52_string.trim().parse::<fastn_p2p::SecretKey>() {
                 println!("🔑 Using persistent key from: {}", key_file);
-                return key;
+                println!("   (Server ID: {})", secret_key.id52());
+                return secret_key;
             }
         }
         println!("⚠️  Could not load key from {}, generating new one", key_file);
@@ -31,14 +32,16 @@ pub fn get_or_create_persistent_key(example_name: &str) -> fastn_p2p::SecretKey 
     // Generate new key
     let key = fastn_p2p::SecretKey::generate();
     
-    // Try to save it
-    match std::fs::write(&key_file, key.to_string()) {
+    // Try to save it as ID52 string
+    match std::fs::write(&key_file, key.id52()) {
         Ok(_) => {
             println!("🔑 Generated and saved persistent key to: {}", key_file);
-            println!("   (Server ID will remain consistent across restarts)");
+            println!("   (Server ID: {})", key.id52());
+            println!("   Server ID will remain consistent across restarts");
         }
         Err(e) => {
-            println!("⚠️  Could not save key to {} ({}), server ID will change on restart", key_file, e);
+            println!("⚠️  Could not save key to {} ({})", key_file, e);
+            println!("   Using temporary key - server ID will change on restart");
         }
     }
     
