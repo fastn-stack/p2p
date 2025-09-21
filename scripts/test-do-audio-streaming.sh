@@ -5,12 +5,14 @@
 # Self-contained with automatic setup, cleanup, and audio quality validation.
 #
 # Usage:
-#   Default: ./test-do-audio-streaming.sh (beast droplet, ~3min total)
+#   Default: ./test-do-audio-streaming.sh (Bangalore beast droplet, ~3min total)
 #   High quality: ./test-do-audio-streaming.sh --high-quality (real MP3 streaming)
+#   For CI/US: ./test-do-audio-streaming.sh --new-york (NYC region)
 #   Long test: ./test-do-audio-streaming.sh --duration 60 (stream for 1 minute)
 #
 # Options:
 #   --high-quality: Download and use high-quality MP3 for testing
+#   --new-york: Use NYC region instead of Bangalore (for CI/US users)
 #   --duration N: Stream for N seconds (default: 30)
 #   --keep-droplet: Keep droplet after test for debugging
 #   --verbose: Show detailed output
@@ -34,7 +36,7 @@ TEST_ID="fastn-audio-$(date +%s)"
 START_TIME=$(date +%s)
 DROPLET_NAME="fastn-audio-test-$TEST_ID"
 DROPLET_SIZE="s-8vcpu-16gb"  # Default: beast mode for fastest builds
-DROPLET_REGION="nyc1"  # New York for good connectivity to US
+DROPLET_REGION="blr1"  # Bangalore for good connectivity from India
 DROPLET_IMAGE="ubuntu-22-04-x64"
 TEST_SSH_KEY="/tmp/${TEST_ID}_ssh_key"
 KEEP_DROPLET=false
@@ -57,29 +59,39 @@ time_checkpoint() {
 }
 
 # Parse arguments
-for arg in "$@"; do
-    case $arg in
+while [[ $# -gt 0 ]]; do
+    case $1 in
         "--high-quality")
             HIGH_QUALITY=true
             log "Will download high-quality MP3 for testing"
+            shift
+            ;;
+        "--new-york")
+            DROPLET_REGION="nyc1"
+            log "Using New York region (better for CI/US users)"
+            shift
             ;;
         "--duration")
             shift
             STREAM_DURATION="$1"
             log "Stream duration set to: ${STREAM_DURATION}s"
+            shift
             ;;
         "--keep-droplet")
             KEEP_DROPLET=true
             log "🔧 DEBUG MODE: Droplet will be kept for debugging"
+            shift
             ;;
         "--verbose")
             VERBOSE=true
             log "Verbose mode enabled"
+            shift
             ;;
         "--help")
             echo "Usage: $0 [OPTIONS]"
             echo "Options:"
             echo "  --high-quality  Download high-quality MP3 for testing"
+            echo "  --new-york      Use NYC region (default: Bangalore for India users)"
             echo "  --duration N    Stream for N seconds (default: 30)"
             echo "  --keep-droplet  Keep droplet for debugging"
             echo "  --verbose       Show detailed output"
@@ -89,7 +101,7 @@ for arg in "$@"; do
             exit 0
             ;;
         *)
-            echo "Error: Unknown argument $arg"
+            echo "Error: Unknown argument $1"
             echo "Usage: $0 [--high-quality] [--duration N] [--keep-droplet] [--verbose]"
             exit 1
             ;;
@@ -404,7 +416,11 @@ if [[ -n "$CHUNKS_RECEIVED" ]] && [[ "$CHUNKS_RECEIVED" -gt 0 ]]; then
     
     echo ""
     printf "${YELLOW}🌐 Network Quality:${NC}\n"
-    echo "  📍 Route: Laptop ↔ Digital Ocean ($DROPLET_REGION)"
+    REGION_NAME="Bangalore"
+    if [[ "$DROPLET_REGION" == "nyc1" ]]; then
+        REGION_NAME="New York"
+    fi
+    echo "  📍 Route: Laptop ↔ Digital Ocean ($REGION_NAME)"
     echo "  ⚡ Latency: Real-time streaming achieved"
     echo "  📶 Quality: $(if (( $(echo "$PACKET_LOSS_RATE < 1" | bc -l) )); then echo "Excellent"; elif (( $(echo "$PACKET_LOSS_RATE < 5" | bc -l) )); then echo "Good"; else echo "Poor"; fi)"
     
