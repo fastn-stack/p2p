@@ -1,9 +1,9 @@
-//! Client-Driven Media Streaming V2 - Main Entry Point
+//! Clean Stream-Based Media Example
 //!
-//! Orchestrates the modular streaming components:
-//! - Uses current enum protocol approach 
-//! - Clean separation: protocol, server, client, UI
-//! - Interactive SPACE pause/resume controls
+//! Demonstrates the new clean streaming API:
+//! - Stream provider trait (app implements)
+//! - Clean client/server separation
+//! - No embedded connection info in types
 
 mod streaming;
 use streaming::*;
@@ -27,27 +27,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-/// Run audio server - loads audio file and handles client requests
+/// Run server with stream provider
 async fn run_server(
     private_key: fastn_p2p::SecretKey,
     audio_file: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // TODO: Print "Audio Server V2 starting..."
+    // TODO: Print "Stream Server starting..."
+    // TODO: Create SimpleAudioProvider::new(audio_file) - implements StreamProvider trait
+    // TODO: Setup fastn_p2p::listen() with GET_STREAM handler using provider
+    // TODO: Setup fastn_p2p::listen() with READ_TRACK_RANGE handler using provider
     // TODO: Print server ID and connection command
-    // TODO: Create AudioServer::new(&audio_file) - loads and decodes audio
-    // TODO: Setup fastn_p2p::listen() with AudioProtocol::GetInfo handler
-    // TODO: Setup fastn_p2p::listen() with AudioProtocol::RequestChunk handler  
-    // TODO: Start listening for requests
+    // TODO: Start listening
     todo!()
 }
 
-/// Run audio client - connects, buffers, and plays audio with interactive controls
+/// Run client with clean stream access
 async fn run_client(
     target: fastn_p2p::PublicKey,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // TODO: Print "Audio Client V2 connecting to: {target}"
-    // TODO: Create AudioClient::connect(target) - gets stream info
-    // TODO: Create StreamingUI::new(client) - setup audio playback
-    // TODO: Call ui.start_streaming() - starts all background tasks
+    // TODO: Print "Stream Client connecting to: {target}"
+    // TODO: Create StreamClient::new(target)
+    // TODO: Call client.open_stream("audio_stream") to get ClientStream
+    // TODO: Get audio track from stream
+    // TODO: Start playback loop using client.read_track_range() calls
+    // TODO: Add interactive controls (SPACE pause/resume)
     todo!()
+}
+
+/// Simple audio stream provider implementation
+struct SimpleAudioProvider {
+    audio_file: String,
+    audio_data: Vec<u8>,
+}
+
+impl SimpleAudioProvider {
+    async fn new(audio_file: String) -> Result<Self, Box<dyn std::error::Error>> {
+        // TODO: Load and decode audio file using examples::audio_decoder
+        // TODO: Store audio_data for serving
+        // TODO: Return SimpleAudioProvider instance
+        todo!()
+    }
+}
+
+impl StreamProvider for SimpleAudioProvider {
+    async fn resolve_stream(&self, stream_name: &str) -> Option<ServerStream> {
+        // TODO: If stream_name == "audio_stream", return stream with single audio track
+        // TODO: Track size = self.audio_data.len()
+        // TODO: Return None for unknown streams
+        todo!()
+    }
+    
+    async fn read_track_range(&self, _stream_name: &str, _track_name: &str, start: u64, length: u64) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        // TODO: Check bounds (start + length <= audio_data.len())
+        // TODO: Return self.audio_data[start..start+length].to_vec()
+        // TODO: Handle out of bounds errors
+        todo!()
+    }
 }

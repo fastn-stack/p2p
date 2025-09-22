@@ -1,68 +1,59 @@
-//! Audio server for client-driven streaming
+//! Server-side stream provider
 
 use super::protocol::*;
-use std::time::Instant;
 
-/// Audio server state - holds decoded audio data and metadata
-#[derive(Clone)]
-pub struct AudioServer {
-    pub audio_data: Vec<u8>,
-    pub sample_rate: u32,
-    pub channels: u16,
-    pub duration_seconds: f64,
-    pub chunk_size: usize,
+/// Stream provider trait - app implements this
+pub trait StreamProvider: Send + Sync {
+    async fn resolve_stream(&self, stream_name: &str) -> Option<ServerStream>;
+    async fn read_track_range(&self, stream_name: &str, track_name: &str, start: u64, length: u64) -> Result<Vec<u8>, Box<dyn std::error::Error>>;
 }
 
-impl AudioServer {
-    /// Create new audio server by loading and decoding audio file
-    pub async fn new(audio_file: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        // TODO: Load audio file using examples::audio_decoder::decode_audio_file()
-        // TODO: Calculate duration_seconds from PCM data length
-        // TODO: Set chunk_size to 256KB (262144 bytes)
-        // TODO: Print timing info and audio metadata
-        // TODO: Return AudioServer instance
+/// Server-side stream metadata
+#[derive(Debug, Clone)]
+pub struct ServerStream {
+    pub name: String,
+    pub tracks: std::collections::HashMap<String, ServerTrack>,
+}
+
+/// Server-side track metadata  
+#[derive(Debug, Clone)]
+pub struct ServerTrack {
+    pub name: String,
+    pub size_bytes: u64,
+}
+
+impl ServerStream {
+    pub fn new(name: String) -> Self {
+        // TODO: Initialize with name and empty tracks HashMap
         todo!()
     }
     
-    /// Get stream information for client
-    pub fn get_stream_info(&self) -> GetInfoResponse {
-        // TODO: Calculate total_chunks = (audio_data.len() + chunk_size - 1) / chunk_size
-        // TODO: Calculate chunk_duration_ms based on sample_rate, channels, chunk_size
-        // TODO: Return GetInfoResponse with all metadata
-        todo!()
-    }
-    
-    /// Get specific audio chunk by ID
-    pub fn get_chunk(&self, chunk_id: u64) -> Option<RequestChunkResponse> {
-        // TODO: Check if chunk_id is valid (< total_chunks)
-        // TODO: Calculate start_offset = chunk_id * chunk_size
-        // TODO: Calculate end_offset = min(start_offset + chunk_size, audio_data.len())
-        // TODO: Extract chunk_data = audio_data[start_offset..end_offset]
-        // TODO: Check if is_last = (chunk_id == total_chunks - 1)
-        // TODO: Return RequestChunkResponse with chunk_id, data, is_last
+    pub fn add_track(&mut self, name: String, size_bytes: u64) {
+        // TODO: Insert ServerTrack into tracks HashMap
         todo!()
     }
 }
 
-/// Handle GetInfo protocol requests
-pub async fn handle_get_info(
-    _request: GetInfoRequest,
-    server: AudioServer,
-) -> Result<GetInfoResponse, Box<dyn std::error::Error>> {
-    // TODO: Print "Client requested stream info"
-    // TODO: Call server.get_stream_info()
-    // TODO: Return the response
+/// Handle GET_STREAM protocol requests
+pub async fn handle_get_stream(
+    request: GetStreamRequest,
+    provider: &dyn StreamProvider,
+) -> Result<GetStreamResponse, Box<dyn std::error::Error>> {
+    // TODO: Print "Client requested stream: {stream_name}"
+    // TODO: Call provider.resolve_stream(request.stream_name)
+    // TODO: Convert ServerStream to GetStreamResponse (map ServerTrack to TrackInfo)
+    // TODO: Return response or error if stream not found
     todo!()
 }
 
-/// Handle RequestChunk protocol requests  
-pub async fn handle_request_chunk(
-    request: RequestChunkRequest,
-    server: AudioServer,
-) -> Result<RequestChunkResponse, Box<dyn std::error::Error>> {
-    // TODO: Print "Client requested chunk {chunk_id} ({size} KB)"
-    // TODO: Call server.get_chunk(request.chunk_id)
-    // TODO: Handle None case (chunk not found) - return error
-    // TODO: Return the chunk response
+/// Handle READ_TRACK_RANGE protocol requests
+pub async fn handle_read_track_range(
+    request: ReadTrackRangeRequest,
+    provider: &dyn StreamProvider,
+) -> Result<ReadTrackRangeResponse, Box<dyn std::error::Error>> {
+    // TODO: Print "Client reading {stream}.{track} range {start}..{start+length}"
+    // TODO: Call provider.read_track_range(stream_name, track_name, start, length)
+    // TODO: Return ReadTrackRangeResponse with data
+    // TODO: Handle errors (stream/track not found, invalid range)
     todo!()
 }

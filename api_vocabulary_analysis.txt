@@ -1,0 +1,76 @@
+Extracting all code snippets from previous comment for vocabulary analysis:
+
+```rust
+use fastn_p2p::*;
+
+let identity = Identity::load("myapp")?;
+let delegation_id = identity.delegate("grantee-id52", "30d", "api:read").await?;
+let pending_id = identity.delegate("sub-grantee-id52", "1h", "api:read:user123")
+    .parent(existing_delegation_id)
+    .await?;
+identity.approve(pending_id).await?;
+identity.revoke(delegation_id).await?;
+
+let active = identity.query().active().await?;
+let granted = identity.query().granted().await?;
+let received = identity.query().received().await?;
+let pending = identity.query().pending().await?;
+let history = identity.query().history(delegation_id).await?;
+let status = identity.query().status(delegation_id).await?;
+
+let conn = Connection::connect(identity, "target-id52", delegation_id).await?;
+let result = conn.call(Protocol::DoSomething, request).await?;
+
+Server::listen(identity)
+    .handle(Protocol::DoSomething, handler)
+    .serve().await?;
+
+let identity = Identity::load("myapp")?;
+let delegation_id = identity.delegate("grantee", "30d", "scope").await?;
+let pending_id = identity.delegate("grantee", "1h", "scope").parent(parent_id).await?;
+let approved = identity.approve(pending_id).await?;
+let granted = identity.query().granted().await?;
+let received = identity.query().received().await?;
+let status = identity.query().status(delegation_id).await?;
+
+let identity = Identity::load("myapp")?;
+let delegation = identity.delegate("grantee-id52", "90d", "api:read").await?;
+let conn = Connection::connect(identity, "server", delegation).await?;
+let result = conn.call(Protocol::GetData, request).await?;
+identity.revoke(delegation).await?;
+```
+
+Non-Rust terms found:
+- Identity
+- delegation / delegate
+- grantee  
+- parent
+- approve
+- revoke
+- query
+- active
+- granted
+- received
+- pending
+- history
+- status
+- Connection / connect
+- Server / listen / serve
+- handle
+- scope
+- target
+- protocol
+- request
+- result
+
+Concepts introduced (filtering out Rust keywords):
+1. Identity
+2. delegation/delegate
+3. grantee
+4. approve
+5. revoke
+6. query
+7. Connection/connect
+8. Server/listen
+9. scope
+10. status/history/pending/active
