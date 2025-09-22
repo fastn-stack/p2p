@@ -1,13 +1,25 @@
 //! Audio client for client-driven streaming
 
 use super::protocol::*;
-use std::collections::VecDeque;
 use std::time::Instant;
+use tokio::sync::mpsc;
 
-/// Client-side audio buffer manager
+// Client buffer status for monitoring (client concern, not protocol)
+#[derive(Debug, Clone)]
+pub struct BufferStatus {
+    pub buffered_chunks: usize,
+    pub buffered_duration_ms: u64,
+    pub target_buffer_ms: u64,
+    pub is_playing: bool,
+    pub needs_data: bool,
+}
+
+/// Client-side audio buffer manager using channels for back-pressure
 #[derive(Debug)]
 pub struct AudioBuffer {
-    chunks: VecDeque<Vec<u8>>,
+    // Use channels for natural back-pressure instead of VecDeque
+    chunk_sender: mpsc::Sender<Vec<u8>>,
+    chunk_receiver: mpsc::Receiver<Vec<u8>>,
     target_buffer_ms: u64,
     current_buffer_ms: u64,
     chunk_duration_ms: u64,
@@ -17,11 +29,13 @@ pub struct AudioBuffer {
 impl AudioBuffer {
     /// Create new audio buffer with target buffering duration
     pub fn new(target_buffer_ms: u64, chunk_duration_ms: u64) -> Self {
-        // TODO: Initialize VecDeque for chunks
+        // TODO: Calculate channel capacity = target_buffer_ms / chunk_duration_ms
+        // TODO: Create mpsc::channel with calculated capacity for back-pressure
         // TODO: Set target_buffer_ms (e.g., 3000ms = 3 seconds)
         // TODO: Set chunk_duration_ms from server metadata
         // TODO: Set is_playing = true initially
         // TODO: Set current_buffer_ms = 0
+        // TODO: Return Self with sender/receiver split
         todo!()
     }
     
@@ -74,8 +88,8 @@ pub struct AudioClient {
     // Stream metadata from server
     pub total_chunks: u64,
     pub sample_rate: u32,
-    pub channels: u16,
-    pub duration_seconds: f64,
+    pub channels: AudioChannels,
+    pub duration_ms: u64,
 }
 
 impl AudioClient {

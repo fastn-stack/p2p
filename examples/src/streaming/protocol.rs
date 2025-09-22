@@ -7,9 +7,19 @@ pub enum AudioProtocol {
     RequestChunk,
 }
 
+// Audio channel configuration
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy)]
+pub enum AudioChannels {
+    Mono = 1,
+    Stereo = 2,
+}
+
 // Get stream metadata request/response
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct GetInfoRequest;
+pub struct GetInfoRequest {
+    /// Preferred chunk size in bytes (server may adjust based on capabilities)
+    pub preferred_chunk_size_bytes: Option<usize>,
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct GetInfoResponse {
@@ -17,8 +27,8 @@ pub struct GetInfoResponse {
     pub chunk_size_bytes: usize,
     pub chunk_duration_ms: u64,
     pub sample_rate: u32,
-    pub channels: u16,
-    pub total_duration_seconds: f64,
+    pub channels: AudioChannels,
+    pub total_duration_ms: u64,
 }
 
 // Request audio chunk request/response
@@ -34,12 +44,3 @@ pub struct RequestChunkResponse {
     pub is_last: bool,
 }
 
-// Client buffer status for adaptive streaming
-#[derive(Debug, Clone)]
-pub struct BufferStatus {
-    pub buffered_chunks: usize,
-    pub buffered_duration_ms: u64,
-    pub target_buffer_ms: u64,
-    pub is_playing: bool,
-    pub needs_data: bool,
-}
