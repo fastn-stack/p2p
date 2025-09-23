@@ -39,25 +39,47 @@ impl ServerStream {
 }
 
 /// Handle GET_STREAM protocol requests
-pub async fn handle_get_stream(
+pub async fn handle_get_stream<T: StreamProvider>(
     request: GetStreamRequest,
-    provider: &dyn StreamProvider,
+    provider: &T,
 ) -> Result<GetStreamResponse, Box<dyn std::error::Error>> {
     // TODO: Print "Client requested stream: {stream_name}"
-    // TODO: Call provider.resolve_stream(request.stream_name)
-    // TODO: Convert ServerStream to GetStreamResponse (map ServerTrack to TrackInfo)
-    // TODO: Return response or error if stream not found
-    todo!()
+    println!("📊 Client requested stream: {}", request.stream_name);
+    
+    match provider.resolve_stream(&request.stream_name).await {
+        Some(server_stream) => {
+            let tracks = server_stream.tracks.into_iter()
+                .map(|(name, server_track)| (name.clone(), TrackInfo {
+                    name,
+                    size_bytes: server_track.size_bytes,
+                }))
+                .collect();
+            
+            Ok(GetStreamResponse {
+                name: server_stream.name,
+                tracks,
+            })
+        }
+        None => Err(format!("Stream '{}' not found", request.stream_name).into())
+    }
 }
 
 /// Handle READ_TRACK_RANGE protocol requests
-pub async fn handle_read_track_range(
+pub async fn handle_read_track_range<T: StreamProvider>(
     request: ReadTrackRangeRequest,
-    provider: &dyn StreamProvider,
+    provider: &T,
 ) -> Result<ReadTrackRangeResponse, Box<dyn std::error::Error>> {
     // TODO: Print "Client reading {stream}.{track} range {start}..{start+length}"
-    // TODO: Call provider.read_track_range(stream_name, track_name, start, length)
-    // TODO: Return ReadTrackRangeResponse with data
-    // TODO: Handle errors (stream/track not found, invalid range)
-    todo!()
+    println!("📦 Reading {}.{} range {}..{}", 
+             request.stream_name, request.track_name, 
+             request.start, request.start + request.length);
+    
+    let data = provider.read_track_range(
+        &request.stream_name,
+        &request.track_name,
+        request.start,
+        request.length,
+    ).await?;
+    
+    Ok(ReadTrackRangeResponse { data })
 }

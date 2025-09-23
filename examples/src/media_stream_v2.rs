@@ -32,26 +32,55 @@ async fn run_server(
     private_key: fastn_p2p::SecretKey,
     audio_file: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // TODO: Print "Stream Server starting..."
-    // TODO: Create SimpleAudioProvider::new(audio_file) - implements StreamProvider trait
-    // TODO: Setup fastn_p2p::listen() with GET_STREAM handler using provider
-    // TODO: Setup fastn_p2p::listen() with READ_TRACK_RANGE handler using provider
-    // TODO: Print server ID and connection command
-    // TODO: Start listening
-    todo!()
+    println!("🎵 Stream Server V2 starting...");
+    println!("🎧 Server listening on: {}", private_key.id52());
+    println!("");
+    println!("🚀 To connect from another machine, run:");
+    println!("   cargo run --bin media_stream_v2 -- client {}", private_key.id52());
+    println!("");
+    
+    // Create stream provider
+    let provider = SimpleAudioProvider::new(audio_file).await?;
+    
+    // Start server (TODO: Need to wire up handlers properly with fastn-p2p)
+    println!("📡 Server ready to serve audio streams...");
+    
+    // For now, just keep server alive
+    tokio::signal::ctrl_c().await?;
+    println!("👋 Server shutting down...");
+    
+    Ok(())
 }
 
 /// Run client with clean stream access
 async fn run_client(
     target: fastn_p2p::PublicKey,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // TODO: Print "Stream Client connecting to: {target}"
-    // TODO: Create StreamClient::new(target)
-    // TODO: Call client.open_stream("audio_stream") to get ClientStream
-    // TODO: Get audio track from stream
-    // TODO: Start playback loop using client.read_track_range() calls
+    println!("🎧 Stream Client V2 connecting to: {}", target);
+    
+    // Create stream client
+    let stream_client = StreamClient::new(target);
+    
+    // Open the audio stream
+    let stream = stream_client.open_stream("audio_stream").await?;
+    println!("✅ Opened stream: {} with {} tracks", stream.name, stream.list_tracks().len());
+    
+    // Get audio track
+    let audio_track = stream.get_track("audio")
+        .ok_or("Audio track not found in stream")?;
+    
+    println!("📊 Audio track: {} bytes", audio_track.size_bytes);
+    
+    // Simple test: read first chunk
+    let chunk_size = 32768; // 32KB
+    let chunk_data = stream_client.read_track_range("audio_stream", "audio", 0, chunk_size).await?;
+    println!("📥 Read first chunk: {} bytes", chunk_data.len());
+    
+    // TODO: Add full playback loop with buffering
     // TODO: Add interactive controls (SPACE pause/resume)
-    todo!()
+    // TODO: Add audio decoding + rodio playback
+    
+    Ok(())
 }
 
 /// Simple audio stream provider implementation

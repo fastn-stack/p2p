@@ -13,6 +13,5 @@ pub mod ui;
 
 // Re-export key types for convenience
 pub use protocol::*;
-pub use server::AudioServer;
-pub use client::AudioClient;
-pub use ui::StreamingUI;
+pub use server::{StreamProvider, ServerStream, ServerTrack, handle_get_stream, handle_read_track_range};
+pub use client::{StreamClient, ClientStream, ClientTrack};

@@ -63,11 +63,16 @@ impl StreamClient {
     /// Open stream by name
     pub async fn open_stream(&self, stream_name: &str) -> Result<ClientStream, Box<dyn std::error::Error>> {
         // TODO: Call fastn_p2p::client::call() with GET_STREAM protocol
-        // TODO: Send GetStreamRequest with stream_name
-        // TODO: Parse GetStreamResponse
-        // TODO: Convert to ClientStream using ClientStream::from_response()
-        // TODO: Return ClientStream
-        todo!()
+        let response: GetStreamResponse = fastn_p2p::client::call(
+            self.private_key.clone(),
+            self.server_id,
+            StreamingProtocol::GetStream,
+            GetStreamRequest {
+                stream_name: stream_name.to_string(),
+            },
+        ).await?;
+        
+        Ok(ClientStream::from_response(response))
     }
     
     /// Read range from specific track
@@ -79,10 +84,18 @@ impl StreamClient {
         length: u64
     ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         // TODO: Call fastn_p2p::client::call() with READ_TRACK_RANGE protocol
-        // TODO: Send ReadTrackRangeRequest with stream_name, track_name, start, length
-        // TODO: Parse ReadTrackRangeResponse  
-        // TODO: Return response.data
-        // TODO: Handle errors (track not found, invalid range)
-        todo!()
+        let response: ReadTrackRangeResponse = fastn_p2p::client::call(
+            self.private_key.clone(),
+            self.server_id,
+            StreamingProtocol::ReadTrackRange,
+            ReadTrackRangeRequest {
+                stream_name: stream_name.to_string(),
+                track_name: track_name.to_string(),
+                start,
+                length,
+            },
+        ).await?;
+        
+        Ok(response.data)
     }
 }
