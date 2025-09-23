@@ -57,3 +57,7 @@ path = "src/multi_protocol.rs"
 name = "audio_test"
 path = "src/audio_test.rs"
 
+[[bin]]
+name = "media_stream_v2"
+path = "src/media_stream_v2.rs"
+
