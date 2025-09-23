@@ -25,12 +25,16 @@ pub struct ServerTrack {
 impl ServerStream {
     pub fn new(name: String) -> Self {
         // TODO: Initialize with name and empty tracks HashMap
-        todo!()
+        Self {
+            name,
+            tracks: std::collections::HashMap::new(),
+        }
     }
     
     pub fn add_track(&mut self, name: String, size_bytes: u64) {
         // TODO: Insert ServerTrack into tracks HashMap
-        todo!()
+        let track = ServerTrack { name: name.clone(), size_bytes };
+        self.tracks.insert(name, track);
     }
 }
 

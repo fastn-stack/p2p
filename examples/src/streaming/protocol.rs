@@ -1,8 +1,11 @@
 //! Clean streaming protocol types
 
-// Protocol constants for fastn-p2p
-pub const GET_STREAM: &str = "stream.get";
-pub const READ_TRACK_RANGE: &str = "stream.read_range";
+// Protocol enum for current fastn-p2p API
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
+pub enum StreamingProtocol {
+    GetStream,
+    ReadTrackRange,
+}
 
 // Get stream metadata
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
