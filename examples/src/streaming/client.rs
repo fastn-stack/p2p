@@ -21,18 +21,27 @@ impl ClientStream {
     pub fn from_response(response: GetStreamResponse) -> Self {
         // TODO: Convert GetStreamResponse to ClientStream
         // TODO: Map TrackInfo to ClientTrack
-        // TODO: Return ClientStream instance
-        todo!()
+        let tracks = response.tracks.into_iter()
+            .map(|(name, track_info)| (name.clone(), ClientTrack {
+                name,
+                size_bytes: track_info.size_bytes,
+            }))
+            .collect();
+        
+        Self {
+            name: response.name,
+            tracks,
+        }
     }
     
     pub fn get_track(&self, track_name: &str) -> Option<&ClientTrack> {
         // TODO: Return track from HashMap or None
-        todo!()
+        self.tracks.get(track_name)
     }
     
     pub fn list_tracks(&self) -> Vec<String> {
         // TODO: Return Vec of track names from HashMap keys
-        todo!()
+        self.tracks.keys().cloned().collect()
     }
 }
 
@@ -45,8 +54,10 @@ pub struct StreamClient {
 impl StreamClient {
     pub fn new(server_id: fastn_p2p::PublicKey) -> Self {
         // TODO: Generate private_key = fastn_p2p::SecretKey::generate()
-        // TODO: Return StreamClient with server_id and private_key
-        todo!()
+        Self {
+            private_key: fastn_p2p::SecretKey::generate(),
+            server_id,
+        }
     }
     
     /// Open stream by name

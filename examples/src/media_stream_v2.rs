@@ -63,24 +63,37 @@ struct SimpleAudioProvider {
 impl SimpleAudioProvider {
     async fn new(audio_file: String) -> Result<Self, Box<dyn std::error::Error>> {
         // TODO: Load and decode audio file using examples::audio_decoder
-        // TODO: Store audio_data for serving
-        // TODO: Return SimpleAudioProvider instance
-        todo!()
+        let (audio_data, _sample_rate, _channels) = examples::audio_decoder::decode_audio_file(&audio_file).await
+            .map_err(|e| format!("Failed to decode audio: {}", e))?;
+        
+        Ok(Self {
+            audio_file,
+            audio_data,
+        })
     }
 }
 
 impl StreamProvider for SimpleAudioProvider {
     async fn resolve_stream(&self, stream_name: &str) -> Option<ServerStream> {
         // TODO: If stream_name == "audio_stream", return stream with single audio track
-        // TODO: Track size = self.audio_data.len()
-        // TODO: Return None for unknown streams
-        todo!()
+        if stream_name == "audio_stream" {
+            let mut stream = ServerStream::new(stream_name.to_string());
+            stream.add_track("audio".to_string(), self.audio_data.len() as u64);
+            Some(stream)
+        } else {
+            None
+        }
     }
     
     async fn read_track_range(&self, _stream_name: &str, _track_name: &str, start: u64, length: u64) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         // TODO: Check bounds (start + length <= audio_data.len())
-        // TODO: Return self.audio_data[start..start+length].to_vec()
-        // TODO: Handle out of bounds errors
-        todo!()
+        let end = std::cmp::min(start + length, self.audio_data.len() as u64) as usize;
+        let start = start as usize;
+        
+        if start >= self.audio_data.len() {
+            return Err("Start position out of bounds".into());
+        }
+        
+        Ok(self.audio_data[start..end].to_vec())
     }
 }
