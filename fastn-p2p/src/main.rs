@@ -6,6 +6,9 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod cli;
+mod protocols;
+
 #[derive(Parser)]
 #[command(name = "fastn-p2p")]
 #[command(about = "P2P daemon and client for fastn")]
@@ -50,154 +53,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Commands::Daemon { home } => {
-            let fastn_home = get_fastn_home(home)?;
+            let fastn_home = cli::get_fastn_home(home)?;
             println!("🚀 Starting fastn-p2p daemon");
             println!("📁 FASTN_HOME: {}", fastn_home.display());
-            daemon::run(fastn_home).await
+            cli::daemon::run(fastn_home).await
         }
         Commands::Call { peer, protocol, home } => {
-            let fastn_home = get_fastn_home(home)?;
-            client::call(fastn_home, peer, protocol).await
+            let fastn_home = cli::get_fastn_home(home)?;
+            cli::client::call(fastn_home, peer, protocol).await
         }
         Commands::Stream { peer, protocol, home } => {
-            let fastn_home = get_fastn_home(home)?;
-            client::stream(fastn_home, peer, protocol).await
+            let fastn_home = cli::get_fastn_home(home)?;
+            cli::client::stream(fastn_home, peer, protocol).await
         }
     }
-}
-
-fn get_fastn_home(custom_home: Option<PathBuf>) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    if let Some(home) = custom_home {
-        return Ok(home);
-    }
-
-    // Fallback to ~/.fastn if no FASTN_HOME env var or --home flag
-    let home_dir = directories::UserDirs::new()
-        .ok_or("Could not determine user home directory")?
-        .home_dir()
-        .to_path_buf();
-
-    Ok(home_dir.join(".fastn"))
-}
-
-mod daemon {
-    use std::path::PathBuf;
-    use tokio::net::UnixListener;
-
-    pub async fn run(fastn_home: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-        // Ensure FASTN_HOME directory exists
-        tokio::fs::create_dir_all(&fastn_home).await?;
-
-        let socket_path = fastn_home.join("control.sock");
-        
-        // Remove existing socket if it exists
-        if socket_path.exists() {
-            tokio::fs::remove_file(&socket_path).await?;
-        }
-
-        let listener = UnixListener::bind(&socket_path)?;
-        println!("🎧 Daemon listening on: {}", socket_path.display());
-        
-        // TODO: Initialize P2P endpoint with persistent key
-        // TODO: Start protocol handlers
-        
-        loop {
-            match listener.accept().await {
-                Ok((stream, _addr)) => {
-                    tokio::spawn(async move {
-                        if let Err(e) = handle_client(stream).await {
-                            eprintln!("Error handling client: {}", e);
-                        }
-                    });
-                }
-                Err(e) => {
-                    eprintln!("Error accepting connection: {}", e);
-                }
-            }
-        }
-    }
-
-    async fn handle_client(
-        _stream: tokio::net::UnixStream,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        // TODO: Handle JSON protocol parsing
-        // TODO: Route to appropriate protocol handlers
-        println!("📨 Client connected");
-        Ok(())
-    }
-}
-
-mod client {
-    use std::path::PathBuf;
-
-    pub async fn call(
-        fastn_home: PathBuf,
-        peer: String,
-        protocol: String,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let socket_path = fastn_home.join("control.sock");
-        
-        if !socket_path.exists() {
-            eprintln!("❌ Daemon not running. Socket not found: {}", socket_path.display());
-            eprintln!("   Start daemon with: fastn-p2p daemon");
-            return Err("Daemon not available".into());
-        }
-
-        // TODO: Connect to daemon via Unix socket
-        // TODO: Send JSON request with peer, protocol, and stdin data
-        // TODO: Print response to stdout or error to stderr
-        
-        println!("📤 Would call {} on peer {} via daemon", protocol, peer);
-        Ok(())
-    }
-
-    pub async fn stream(
-        fastn_home: PathBuf,
-        peer: String,
-        protocol: String,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let socket_path = fastn_home.join("control.sock");
-        
-        if !socket_path.exists() {
-            eprintln!("❌ Daemon not running. Socket not found: {}", socket_path.display());
-            eprintln!("   Start daemon with: fastn-p2p daemon");
-            return Err("Daemon not available".into());
-        }
-
-        // TODO: Connect to daemon via Unix socket
-        // TODO: Send JSON stream request 
-        // TODO: Pipe stdin/stdout bidirectionally
-        
-        println!("🌊 Would stream {} to peer {} via daemon", protocol, peer);
-        Ok(())
-    }
-}
-
-// Test protocols for end-to-end testing
-mod protocols {
-    use serde::{Deserialize, Serialize};
-
-    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-    pub enum TestProtocol {
-        Echo,
-        Shell,
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    pub struct EchoRequest {
-        pub message: String,
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    pub struct EchoResponse {
-        pub echoed: String,
-    }
-
-    #[derive(Debug, Serialize, Deserialize, thiserror::Error)]
-    pub enum EchoError {
-        #[error("Invalid message: {0}")]
-        InvalidMessage(String),
-    }
-
-    // TODO: Add Shell protocol for interactive testing
 }
