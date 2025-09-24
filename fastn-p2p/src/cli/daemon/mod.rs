@@ -5,14 +5,17 @@
 //! 2. P2P listener - handles incoming P2P connections and protocols
 
 use std::path::PathBuf;
+use std::fs::OpenOptions;
+use fs2::FileExt;
 use tokio::sync::broadcast;
 
-/// Daemon context containing persistent state and identity
-#[derive(Debug, Clone)]
+/// Daemon context containing runtime state and lock
+#[derive(Debug)]
 pub struct DaemonContext {
     pub private_key: fastn_id52::SecretKey,
     pub peer_id: fastn_id52::PublicKey,
     pub fastn_home: PathBuf,
+    pub _lock_file: std::fs::File, // Keep lock file open to maintain exclusive access
 }
 
 /// Coordination channels for daemon services
@@ -76,7 +79,7 @@ pub async fn run(fastn_home: PathBuf) -> Result<(), Box<dyn std::error::Error>> 
     let coordination = setup_coordination_channels().await?;
     
     // Start P2P networking layer
-    start_p2p_service(daemon_context.clone(), &coordination).await?;
+    start_p2p_service(&daemon_context, &coordination).await?;
     
     // Start control socket service
     start_control_service(fastn_home, &coordination).await?;
@@ -87,9 +90,44 @@ pub async fn run(fastn_home: PathBuf) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
-/// Initialize daemon environment and load persistent state
+/// Initialize daemon environment with singleton lock protection
 async fn initialize_daemon(fastn_home: &PathBuf) -> Result<DaemonContext, Box<dyn std::error::Error>> {
-    todo!("Create FASTN_HOME directory, load/generate daemon keys, return context");
+    // Ensure FASTN_HOME directory exists
+    tokio::fs::create_dir_all(fastn_home).await?;
+    
+    // Create/open lock file for singleton protection
+    let lock_path = fastn_home.join("lock.file");
+    let lock_file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&lock_path)?;
+        
+    // Try to acquire exclusive lock - fail immediately if another daemon running
+    if let Err(e) = lock_file.try_lock_exclusive() {
+        return Err(format!(
+            "❌ Another daemon is already running (lock file: {})\n   Error: {}\n   Shutdown the existing daemon first.", 
+            lock_path.display(), 
+            e
+        ).into());
+    }
+    
+    println!("🔒 Acquired exclusive daemon lock: {}", lock_path.display());
+    
+    // Generate runtime private key (not persistent for MVP)
+    let private_key = fastn_id52::SecretKey::generate();
+    let peer_id = private_key.public_key();
+    
+    println!("🔑 Generated runtime daemon key");
+    println!("   Peer ID: {}", peer_id.id52());
+    println!("   Lock file: {}", lock_path.display());
+    
+    Ok(DaemonContext {
+        private_key,
+        peer_id,
+        fastn_home: fastn_home.clone(),
+        _lock_file: lock_file, // Keep file open to maintain lock
+    })
 }
 
 /// Set up broadcast channels for coordination between services
@@ -99,7 +137,7 @@ async fn setup_coordination_channels() -> Result<CoordinationChannels, Box<dyn s
 
 /// Start the P2P networking service
 async fn start_p2p_service(
-    _daemon_context: DaemonContext,
+    _daemon_context: &DaemonContext,
     _coordination: &CoordinationChannels,
 ) -> Result<(), Box<dyn std::error::Error>> {
     todo!("Initialize iroh endpoint, start protocol handlers, spawn P2P service task");
