@@ -97,26 +97,36 @@ async fn initialize_daemon(fastn_home: &PathBuf) -> Result<DaemonContext, Box<dy
     let lock_file = fastn_p2p::server::acquire_singleton_lock(fastn_home).await?;
     
     // Load all available identity configurations
-    let identity_configs = fastn_p2p::server::load_all_identities(fastn_home).await?;
+    let all_identities = fastn_p2p::server::load_all_identities(fastn_home).await?;
     
-    if identity_configs.is_empty() {
+    if all_identities.is_empty() {
         return Err(format!(
             "❌ No identities found in {}/identities/\n   Create an identity first with: fastn-p2p create-identity <alias>",
             fastn_home.display()
         ).into());
     }
     
-    // Use the first identity for the daemon (TODO: support multiple)
-    let identity_config = identity_configs.into_iter().next().unwrap();
+    // Filter for online identities only
+    let online_identities: Vec<_> = all_identities.into_iter().filter(|id| id.online).collect();
+    
+    if online_identities.is_empty() {
+        return Err(format!(
+            "❌ No online identities found\n   Enable an identity with: fastn-p2p identity-online <alias>\n   Check status with: fastn-p2p status"
+        ).into());
+    }
+    
+    // Use the first online identity for the daemon (TODO: support multiple)
+    let identity_config = online_identities.into_iter().next().unwrap();
     let private_key = identity_config.secret_key.clone();
     let peer_id = private_key.public_key();
     
-    println!("🔑 Using identity '{}' for daemon", identity_config.alias);
+    println!("🔑 Using online identity '{}' for daemon", identity_config.alias);
     println!("   Peer ID: {}", peer_id.id52());
-    println!("   Protocols configured: {}", identity_config.protocols.len());
+    println!("   Status: 🟢 ONLINE");
+    println!("   Protocols enabled: {}", identity_config.protocols.len());
     
     for protocol in &identity_config.protocols {
-        println!("     - {} as '{}' (config: {} bytes)", 
+        println!("     🟢 {} as '{}' (config: {} bytes)", 
                 protocol.protocol, 
                 protocol.bind_alias,
                 protocol.config.to_string().len());
@@ -132,7 +142,18 @@ async fn initialize_daemon(fastn_home: &PathBuf) -> Result<DaemonContext, Box<dy
 
 /// Set up broadcast channels for coordination between services
 async fn setup_coordination_channels() -> Result<CoordinationChannels, Box<dyn std::error::Error>> {
-    todo!("Create command and response broadcast channels for control<->P2P coordination");
+    // Create broadcast channels for communication between control socket and P2P services
+    let (command_tx, _command_rx) = broadcast::channel::<DaemonCommand>(100);
+    let (response_tx, _response_rx) = broadcast::channel::<DaemonResponse>(100);
+    
+    println!("📡 Created coordination channels");
+    println!("   Command channel: 100 message buffer");
+    println!("   Response channel: 100 message buffer");
+    
+    Ok(CoordinationChannels {
+        command_tx,
+        response_tx,
+    })
 }
 
 /// Start the P2P networking service
