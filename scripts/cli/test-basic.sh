@@ -67,11 +67,14 @@ else
     exit 1
 fi
 
-echo -e "${YELLOW}📞 Testing client call (this will fail for now - just testing CLI)...${NC}"
+echo -e "${YELLOW}📞 Testing client call with FASTN_HOME env var...${NC}"
 FASTN_HOME="$DAEMON1_HOME" $CARGO_BIN call test_peer_id Echo || echo -e "${YELLOW}⚠️  Expected failure - implementation not complete${NC}"
 
-echo -e "${YELLOW}🌊 Testing client stream (this will fail for now - just testing CLI)...${NC}"
-FASTN_HOME="$DAEMON1_HOME" $CARGO_BIN stream test_peer_id Shell || echo -e "${YELLOW}⚠️  Expected failure - implementation not complete${NC}"
+echo -e "${YELLOW}🌊 Testing client stream with --home flag...${NC}"
+$CARGO_BIN stream test_peer_id Shell --home "$DAEMON2_HOME" || echo -e "${YELLOW}⚠️  Expected failure - implementation not complete${NC}"
+
+echo -e "${YELLOW}🔍 Testing help output for env var documentation...${NC}"
+$CARGO_BIN daemon --help | grep -q "FASTN_HOME" && echo -e "${GREEN}✅ FASTN_HOME documented in help${NC}" || echo -e "${RED}❌ FASTN_HOME not in help${NC}"
 
 echo -e "${GREEN}🎉 Basic test completed successfully!${NC}"
 echo -e "${GREEN}   - Both daemons started${NC}"

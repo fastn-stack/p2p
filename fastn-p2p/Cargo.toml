@@ -11,7 +11,7 @@ name = "fastn-p2p"
 path = "src/main.rs"
 
 [dependencies]
-clap.workspace = true
+clap = { workspace = true, features = ["env"] }
 directories.workspace = true
 fastn-net = { path = "../fastn-net", version = "0.1.2" }
 fastn-id52 = { path = "../fastn-id52", version = "0.1.1" }

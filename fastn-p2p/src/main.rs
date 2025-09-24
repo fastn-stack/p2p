@@ -18,8 +18,8 @@ struct Cli {
 enum Commands {
     /// Start the P2P daemon in foreground mode
     Daemon {
-        /// Custom FASTN_HOME directory (defaults to ~/.fastn)
-        #[arg(long)]
+        /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
+        #[arg(long, env = "FASTN_HOME")]
         home: Option<PathBuf>,
     },
     /// Make a request/response call to a peer
@@ -28,8 +28,8 @@ enum Commands {
         peer: String,
         /// Protocol name
         protocol: String,
-        /// Custom FASTN_HOME directory (defaults to ~/.fastn)
-        #[arg(long)]
+        /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
+        #[arg(long, env = "FASTN_HOME")]
         home: Option<PathBuf>,
     },
     /// Open a bidirectional stream to a peer
@@ -38,8 +38,8 @@ enum Commands {
         peer: String,
         /// Protocol name
         protocol: String,
-        /// Custom FASTN_HOME directory (defaults to ~/.fastn)
-        #[arg(long)]
+        /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
+        #[arg(long, env = "FASTN_HOME")]
         home: Option<PathBuf>,
     },
 }
@@ -71,10 +71,7 @@ fn get_fastn_home(custom_home: Option<PathBuf>) -> Result<PathBuf, Box<dyn std::
         return Ok(home);
     }
 
-    if let Ok(env_home) = std::env::var("FASTN_HOME") {
-        return Ok(PathBuf::from(env_home));
-    }
-
+    // Fallback to ~/.fastn if no FASTN_HOME env var or --home flag
     let home_dir = directories::UserDirs::new()
         .ok_or("Could not determine user home directory")?
         .home_dir()
