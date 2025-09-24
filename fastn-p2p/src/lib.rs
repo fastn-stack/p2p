@@ -11,22 +11,136 @@
 //! - **Bug Prevention**: API design makes common mistakes impossible or unlikely
 //! - **Ergonomic**: High-level APIs handle boilerplate automatically
 //!
-//! ## Usage Patterns
+//! ## Quick Start
 //!
-//! ## API Overview
+//! ### Request/Response Pattern
 //!
-//! ### Client Side
-//! ```rust,ignore
-//! // Type-safe P2P calls with shared error types
+//! ```rust,no_run
+//! use fastn_p2p::SecretKey;
+//! use serde::{Serialize, Deserialize};
+//!
+//! // Define your protocol
+//! #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+//! pub enum EchoProtocol { Echo }
+//!
+//! #[derive(Serialize, Deserialize, Debug)]
+//! pub struct EchoRequest { pub message: String }
+//!
+//! #[derive(Serialize, Deserialize, Debug)]
+//! pub struct EchoResponse { pub echoed: String }
+//!
+//! #[derive(Serialize, Deserialize, Debug, thiserror::Error)]
+//! #[error("Echo error: {message}")]
+//! pub struct EchoError { pub message: String }
+//!
 //! type EchoResult = Result<EchoResponse, EchoError>;
-//! let result: EchoResult = fastn_p2p::call(/*...*/).await?;
+//!
+//! // Server: Handle requests
+//! # async fn server_example() -> Result<(), Box<dyn std::error::Error>> {
+//! let private_key = SecretKey::generate();
+//! fastn_p2p::listen(private_key)
+//!     .handle_requests(EchoProtocol::Echo, echo_handler)
+//!     .await?;
+//! # Ok(())
+//! # }
+//!
+//! async fn echo_handler(req: EchoRequest) -> Result<EchoResponse, EchoError> {
+//!     Ok(EchoResponse { echoed: format!("Echo: {}", req.message) })
+//! }
+//!
+//! // Client: Make requests
+//! # async fn client_example() -> Result<(), Box<dyn std::error::Error>> {
+//! # let private_key = SecretKey::generate();
+//! # let target_peer = SecretKey::generate().public_key();
+//! let request = EchoRequest { message: "Hello P2P!".to_string() };
+//! let result: EchoResult = fastn_p2p::client::call(
+//!     private_key,
+//!     target_peer,
+//!     EchoProtocol::Echo,
+//!     request
+//! ).await?;
+//!
+//! match result {
+//!     Ok(response) => println!("Response: {}", response.echoed),
+//!     Err(error) => eprintln!("Error: {}", error),
+//! }
+//! # Ok(())
+//! # }
 //! ```
 //!
-//! ### Server Side  
-//! ```rust,ignore
-//! // High-level request handling with automatic response management
-//! let stream = fastn_p2p::listen(/*...*/)?;
-//! request.handle(|req: EchoRequest| async move { /*...*/ }).await?;
+//! ### Streaming Pattern
+//!
+//! ```rust,no_run
+//! use fastn_p2p::{SecretKey, Session};
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+//! pub enum FileProtocol { Download }
+//!
+//! // Server: Handle streams
+//! # async fn server_example() -> Result<(), Box<dyn std::error::Error>> {
+//! let private_key = SecretKey::generate();
+//! fastn_p2p::listen(private_key)
+//!     .handle_streams(FileProtocol::Download, (), file_handler)
+//!     .await?;
+//! # Ok(())
+//! # }
+//!
+//! async fn file_handler(
+//!     mut session: Session<FileProtocol>,
+//!     filename: String,
+//!     _state: (),
+//! ) -> Result<(), std::io::Error> {
+//!     let mut file = tokio::fs::File::open(&filename).await?;
+//!     session.copy_from(&mut file).await?;
+//!     Ok(())
+//! }
+//!
+//! // Client: Receive stream
+//! # async fn client_example() -> Result<(), Box<dyn std::error::Error>> {
+//! # let private_key = SecretKey::generate();
+//! # let target_peer = SecretKey::generate().public_key();
+//! # let filename = "test.txt";
+//! let mut session = fastn_p2p::client::connect(
+//!     private_key,
+//!     target_peer,
+//!     FileProtocol::Download,
+//!     filename,
+//! ).await?;
+//!
+//! let mut output_file = tokio::fs::File::create("downloaded_file").await?;
+//! session.copy_to(&mut output_file).await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Core Concepts
+//!
+//! ### Protocols
+//! Define your communication protocols as enums that implement `Serialize`, `Deserialize`, `Debug`, `Clone`, and `PartialEq`:
+//!
+//! ```rust
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+//! pub enum MyProtocol {
+//!     RequestResponse,
+//!     FileTransfer,
+//!     ShellExecution,
+//! }
+//! ```
+//!
+//! ### Error Handling
+//! Use structured error types with `thiserror` for application-level errors:
+//!
+//! ```rust
+//! #[derive(Debug, thiserror::Error, serde::Serialize, serde::Deserialize)]
+//! pub enum MyError {
+//!     #[error("File not found: {0}")]
+//!     NotFound(String),
+//!     #[error("Permission denied: {0}")]
+//!     PermissionDenied(String),
+//! }
 //! ```
 
 extern crate self as fastn_p2p;
