@@ -45,6 +45,26 @@ pub enum DaemonCommand {
         protocol: String,
         initial_data: serde_json::Value,
     },
+    /// Reload identity configurations from disk
+    ReloadIdentities,
+    /// Set an identity online/offline
+    SetIdentityState {
+        identity: String,
+        online: bool,
+    },
+    /// Add a protocol binding to an identity
+    AddProtocol {
+        identity: String,
+        protocol: String,
+        bind_alias: String,
+        config: serde_json::Value,
+    },
+    /// Remove a protocol binding from an identity
+    RemoveProtocol {
+        identity: String,
+        protocol: String,
+        bind_alias: String,
+    },
     /// Shutdown the daemon
     Shutdown,
 }
@@ -66,6 +86,32 @@ pub enum DaemonResponse {
     },
     /// Stream error
     StreamError {
+        error: String,
+    },
+    /// Identity configurations reloaded
+    IdentitiesReloaded {
+        total: usize,
+        online: usize,
+    },
+    /// Identity state changed successfully
+    IdentityStateChanged {
+        identity: String,
+        online: bool,
+    },
+    /// Protocol binding added successfully
+    ProtocolAdded {
+        identity: String,
+        protocol: String,
+        bind_alias: String,
+    },
+    /// Protocol binding removed successfully
+    ProtocolRemoved {
+        identity: String,
+        protocol: String,
+        bind_alias: String,
+    },
+    /// Operation error
+    OperationError {
         error: String,
     },
 }
@@ -96,45 +142,49 @@ async fn initialize_daemon(fastn_home: &PathBuf) -> Result<DaemonContext, Box<dy
     fastn_p2p::server::ensure_fastn_home(fastn_home).await?;
     let lock_file = fastn_p2p::server::acquire_singleton_lock(fastn_home).await?;
     
-    // Load all available identity configurations
+    // Load all available identity configurations  
     let all_identities = fastn_p2p::server::load_all_identities(fastn_home).await?;
     
     if all_identities.is_empty() {
-        return Err(format!(
-            "❌ No identities found in {}/identities/\n   Create an identity first with: fastn-p2p create-identity <alias>",
-            fastn_home.display()
-        ).into());
+        println!("⚠️  No identities found in {}/identities/", fastn_home.display());
+        println!("   Daemon will start and wait for identities to be created");
+        println!("   Create an identity with: fastn-p2p create-identity <alias>");
+    } else {
+        // Show status of all identities
+        let online_count = all_identities.iter().filter(|id| id.online).count();
+        let total_protocols: usize = all_identities.iter()
+            .filter(|id| id.online)
+            .map(|id| id.protocols.len())
+            .sum();
+            
+        println!("🔑 Loaded {} identities ({} online)", all_identities.len(), online_count);
+        
+        for identity in &all_identities {
+            let status_icon = if identity.online { "🟢" } else { "🔴" };
+            let status_text = if identity.online { "ONLINE" } else { "OFFLINE" };
+            
+            println!("   {} {} ({}) - {} protocols", 
+                    status_icon, 
+                    identity.alias, 
+                    status_text,
+                    identity.protocols.len());
+        }
+        
+        if online_count == 0 {
+            println!("⚠️  No online identities - no P2P services will be started");
+            println!("   Enable identities with: fastn-p2p identity-online <alias>");
+        } else {
+            println!("✅ Will start {} P2P services for online identities", total_protocols);
+        }
     }
     
-    // Filter for online identities only
-    let online_identities: Vec<_> = all_identities.into_iter().filter(|id| id.online).collect();
-    
-    if online_identities.is_empty() {
-        return Err(format!(
-            "❌ No online identities found\n   Enable an identity with: fastn-p2p identity-online <alias>\n   Check status with: fastn-p2p status"
-        ).into());
-    }
-    
-    // Use the first online identity for the daemon (TODO: support multiple)
-    let identity_config = online_identities.into_iter().next().unwrap();
-    let private_key = identity_config.secret_key.clone();
-    let peer_id = private_key.public_key();
-    
-    println!("🔑 Using online identity '{}' for daemon", identity_config.alias);
-    println!("   Peer ID: {}", peer_id.id52());
-    println!("   Status: 🟢 ONLINE");
-    println!("   Protocols enabled: {}", identity_config.protocols.len());
-    
-    for protocol in &identity_config.protocols {
-        println!("     🟢 {} as '{}' (config: {} bytes)", 
-                protocol.protocol, 
-                protocol.bind_alias,
-                protocol.config.to_string().len());
-    }
+    // Generate a runtime daemon key for internal operations (not for P2P protocols)
+    let daemon_key = fastn_id52::SecretKey::generate();
+    println!("🔧 Generated daemon runtime key: {}", daemon_key.public_key().id52());
     
     Ok(DaemonContext {
-        private_key,
-        peer_id,
+        private_key: daemon_key.clone(),
+        peer_id: daemon_key.public_key(),
         fastn_home: fastn_home.clone(),
         _lock_file: lock_file,
     })

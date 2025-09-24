@@ -16,15 +16,27 @@ use super::{DaemonCommand, DaemonResponse};
 struct ClientRequest {
     /// Request ID for tracking responses
     id: String,
-    /// Request type: "call" or "stream"
+    /// Request type: "call", "stream", "reload-identities", "set-identity-state", "add-protocol", "remove-protocol"
     #[serde(rename = "type")]
     request_type: String,
-    /// Target peer ID52
-    target: String,
-    /// Protocol name
-    protocol: String,
-    /// Request data (varies by protocol)
-    data: serde_json::Value,
+    /// Target peer ID52 (for call/stream requests)
+    #[serde(default)]
+    target: Option<String>,
+    /// Protocol name (for call/stream/add-protocol/remove-protocol requests)
+    #[serde(default)]
+    protocol: Option<String>,
+    /// Identity name (for identity management requests)
+    #[serde(default)]
+    identity: Option<String>,
+    /// Bind alias (for add-protocol/remove-protocol requests)
+    #[serde(default)]
+    bind_alias: Option<String>,
+    /// Online state (for set-identity-state requests)
+    #[serde(default)]
+    online: Option<bool>,
+    /// Request data (varies by protocol and request type)
+    #[serde(default)]
+    data: Option<serde_json::Value>,
 }
 
 /// JSON response format to clients
