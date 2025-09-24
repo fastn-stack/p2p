@@ -104,38 +104,55 @@ pub async fn remove_protocol(
     Ok(())
 }
 
-/// List all identities and their protocol configurations
-pub async fn list_identities(
+/// Set an identity online (enable its protocols)
+pub async fn set_identity_online(
     fastn_home: PathBuf,
+    identity: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let identity_configs = fastn_p2p::server::load_all_identities(&fastn_home).await?;
+    let identities_dir = fastn_home.join("identities");
     
-    if identity_configs.is_empty() {
-        println!("📭 No identities found in {}/identities/", fastn_home.display());
-        println!("   Create an identity with: fastn-p2p create-identity <alias>");
+    // Load identity config
+    let mut identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
+        .map_err(|e| format!("Identity '{}' not found: {}", identity, e))?;
+    
+    if identity_config.online {
+        println!("ℹ️  Identity '{}' is already online", identity);
         return Ok(());
     }
     
-    println!("📋 Found {} identities in {}/identities/:", identity_configs.len(), fastn_home.display());
-    println!();
+    // Set online and save
+    identity_config.online = true;
+    identity_config.save_to_dir(&identities_dir).await?;
     
-    for identity in &identity_configs {
-        println!("🔑 Identity: {}", identity.alias);
-        println!("   Peer ID: {}", identity.secret_key.public_key().id52());
-        println!("   Protocols: {}", identity.protocols.len());
-        
-        if identity.protocols.is_empty() {
-            println!("     (no protocols configured)");
-        } else {
-            for protocol in &identity.protocols {
-                println!("     - {} as '{}' (config: {} bytes)", 
-                        protocol.protocol, 
-                        protocol.bind_alias,
-                        protocol.config.to_string().len());
-            }
-        }
-        println!();
+    println!("🟢 Identity '{}' is now ONLINE", identity);
+    println!("   {} protocols will be enabled when daemon starts", identity_config.protocols.len());
+    
+    Ok(())
+}
+
+/// Set an identity offline (disable its protocols)
+pub async fn set_identity_offline(
+    fastn_home: PathBuf,
+    identity: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let identities_dir = fastn_home.join("identities");
+    
+    // Load identity config
+    let mut identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
+        .map_err(|e| format!("Identity '{}' not found: {}", identity, e))?;
+    
+    if !identity_config.online {
+        println!("ℹ️  Identity '{}' is already offline", identity);
+        return Ok(());
     }
+    
+    // Set offline and save
+    identity_config.online = false;
+    identity_config.save_to_dir(&identities_dir).await?;
+    
+    println!("🔴 Identity '{}' is now OFFLINE", identity);
+    println!("   {} protocols will be disabled", identity_config.protocols.len());
+    println!("   Restart daemon for changes to take effect");
     
     Ok(())
 }

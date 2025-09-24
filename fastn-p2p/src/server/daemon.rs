@@ -15,12 +15,13 @@ pub struct ProtocolBinding {
     pub config: serde_json::Value,
 }
 
-/// Identity with protocol bindings
+/// Identity with protocol bindings and online/offline state
 #[derive(Debug, Clone)]
 pub struct IdentityConfig {
     pub alias: String,
     pub secret_key: fastn_id52::SecretKey,
     pub protocols: Vec<ProtocolBinding>,
+    pub online: bool,
 }
 
 /// Serializable version of IdentityConfig (without secret key)
@@ -28,15 +29,22 @@ pub struct IdentityConfig {
 struct IdentityConfigSerialized {
     alias: String,
     protocols: Vec<ProtocolBinding>,
+    #[serde(default = "default_online_true")]
+    online: bool,
+}
+
+fn default_online_true() -> bool {
+    true
 }
 
 impl IdentityConfig {
-    /// Create a new identity config with no protocols
+    /// Create a new identity config with no protocols (online by default)
     pub fn new(alias: String, secret_key: fastn_id52::SecretKey) -> Self {
         Self {
             alias,
             secret_key,
             protocols: Vec::new(),
+            online: true,
         }
     }
     
@@ -63,6 +71,7 @@ impl IdentityConfig {
         let serializable = IdentityConfigSerialized {
             alias: self.alias.clone(),
             protocols: self.protocols.clone(),
+            online: self.online,
         };
         let config_json = serde_json::to_string_pretty(&serializable)?;
         tokio::fs::write(&config_path, config_json).await?;
@@ -84,6 +93,7 @@ impl IdentityConfig {
                 alias: serialized.alias,
                 secret_key,
                 protocols: serialized.protocols,
+                online: serialized.online,
             }
         } else {
             // No config file, create default

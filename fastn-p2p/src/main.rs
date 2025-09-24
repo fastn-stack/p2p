@@ -55,7 +55,6 @@ enum Commands {
     /// Add a protocol binding to an identity
     AddProtocol {
         /// Identity alias name
-        #[arg(long)]
         identity: String,
         /// Protocol name to add
         #[arg(long)]
@@ -73,7 +72,6 @@ enum Commands {
     /// Remove a protocol binding from an identity
     RemoveProtocol {
         /// Identity alias name
-        #[arg(long)]
         identity: String,
         /// Protocol name to remove
         #[arg(long)]
@@ -85,8 +83,24 @@ enum Commands {
         #[arg(long, env = "FASTN_HOME")]
         home: Option<PathBuf>,
     },
-    /// List all identities and their protocol configurations
-    ListIdentities {
+    /// Show comprehensive daemon and identity status
+    Status {
+        /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
+        #[arg(long, env = "FASTN_HOME")]
+        home: Option<PathBuf>,
+    },
+    /// Set an identity online (enable its protocols)
+    IdentityOnline {
+        /// Identity alias name
+        identity: String,
+        /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
+        #[arg(long, env = "FASTN_HOME")]
+        home: Option<PathBuf>,
+    },
+    /// Set an identity offline (disable its protocols)
+    IdentityOffline {
+        /// Identity alias name
+        identity: String,
         /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
         #[arg(long, env = "FASTN_HOME")]
         home: Option<PathBuf>,
@@ -124,9 +138,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let fastn_home = cli::get_fastn_home(home)?;
             cli::identity::remove_protocol(fastn_home, identity, protocol, alias).await
         }
-        Commands::ListIdentities { home } => {
+        Commands::Status { home } => {
             let fastn_home = cli::get_fastn_home(home)?;
-            cli::identity::list_identities(fastn_home).await
+            cli::status::show_status(fastn_home).await
+        }
+        Commands::IdentityOnline { identity, home } => {
+            let fastn_home = cli::get_fastn_home(home)?;
+            cli::identity::set_identity_online(fastn_home, identity).await
+        }
+        Commands::IdentityOffline { identity, home } => {
+            let fastn_home = cli::get_fastn_home(home)?;
+            cli::identity::set_identity_offline(fastn_home, identity).await
         }
     }
 }
