@@ -10,6 +10,7 @@ use tokio::sync::broadcast;
 pub mod control;
 pub mod p2p;
 pub mod protocols;
+pub mod test_protocols;
 
 /// Daemon command for coordinating between control socket and P2P
 #[derive(Debug, Clone)]

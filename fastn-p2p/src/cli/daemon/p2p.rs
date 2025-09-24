@@ -87,11 +87,11 @@ async fn setup_protocol_handlers(
     
     // Initialize Echo protocol handler
     echo::initialize(daemon_key.clone(), response_tx.clone()).await?;
-    handlers.insert("Echo".to_string(), "Active".to_string());
+    handlers.insert(super::test_protocols::ECHO_PROTOCOL.to_string(), "Active".to_string());
     
     // Initialize Shell protocol handler  
     shell::initialize(daemon_key.clone(), response_tx.clone()).await?;
-    handlers.insert("Shell".to_string(), "Active".to_string());
+    handlers.insert(super::test_protocols::SHELL_PROTOCOL.to_string(), "Active".to_string());
     
     Ok(handlers)
 }

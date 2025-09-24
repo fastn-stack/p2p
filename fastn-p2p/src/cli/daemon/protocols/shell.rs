@@ -53,7 +53,7 @@ pub async fn initialize(
 
 /// Handle Shell protocol streaming sessions
 pub async fn shell_stream_handler(
-    mut _session: fastn_p2p::Session<crate::protocols::TestProtocol>,
+    mut _session: fastn_p2p::Session,
     command: ShellCommand,
     _state: (),
 ) -> Result<(), ShellError> {

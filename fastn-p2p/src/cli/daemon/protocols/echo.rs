@@ -4,7 +4,7 @@
 
 use tokio::sync::broadcast;
 
-use crate::protocols::{EchoRequest, EchoResponse, EchoError};
+use crate::cli::daemon::test_protocols::{EchoRequest, EchoResponse, EchoError};
 use super::super::{DaemonResponse};
 
 /// Initialize the Echo protocol handler

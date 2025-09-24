@@ -7,7 +7,6 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 mod cli;
-mod protocols;
 
 #[derive(Parser)]
 #[command(name = "fastn-p2p")]

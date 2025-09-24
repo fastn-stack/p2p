@@ -9,10 +9,11 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Test configuration
+# Test configuration - unique directories per test run
 TEST_NAME="basic-daemon-test"
-DAEMON1_HOME="/tmp/fastn-test-daemon1"
-DAEMON2_HOME="/tmp/fastn-test-daemon2"
+TEST_ID=$(date +%s)_$$
+DAEMON1_HOME="/tmp/fastn-test-daemon1-${TEST_ID}"
+DAEMON2_HOME="/tmp/fastn-test-daemon2-${TEST_ID}"
 CARGO_BIN="cargo run --bin fastn-p2p --"
 
 cleanup() {

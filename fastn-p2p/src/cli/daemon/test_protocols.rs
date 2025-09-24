@@ -5,11 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum TestProtocol {
-    Echo,
-    Shell,
-}
+/// Protocol identifiers as const strings
+pub const ECHO_PROTOCOL: &str = "Echo";
+pub const SHELL_PROTOCOL: &str = "Shell";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EchoRequest {
