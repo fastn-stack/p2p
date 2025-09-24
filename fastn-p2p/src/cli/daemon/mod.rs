@@ -200,10 +200,42 @@ async fn setup_coordination_channels() -> Result<CoordinationChannels, Box<dyn s
 
 /// Start the P2P networking service
 async fn start_p2p_service(
-    _daemon_context: &DaemonContext,
-    _coordination: &CoordinationChannels,
+    daemon_context: &DaemonContext,
+    coordination: &CoordinationChannels,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Initialize iroh endpoint, start protocol handlers, spawn P2P service task");
+    // Load current online identities for P2P services
+    let online_identities: Vec<_> = fastn_p2p::server::load_all_identities(&daemon_context.fastn_home)
+        .await?
+        .into_iter()
+        .filter(|identity| identity.online)
+        .collect();
+    
+    if online_identities.is_empty() {
+        println!("📡 P2P service: No online identities - waiting for activation");
+        // Still spawn the P2P task to handle future commands
+    } else {
+        let total_protocols: usize = online_identities.iter().map(|id| id.protocols.len()).sum();
+        println!("📡 P2P service: Starting {} protocols for {} online identities", 
+                total_protocols, online_identities.len());
+        
+        for identity in &online_identities {
+            println!("   🟢 {} - {} protocols", identity.alias, identity.protocols.len());
+        }
+    }
+    
+    // Spawn P2P service task
+    let command_rx = coordination.command_tx.subscribe();
+    let response_tx = coordination.response_tx.clone();
+    let fastn_home = daemon_context.fastn_home.clone();
+    
+    tokio::spawn(async move {
+        if let Err(e) = p2p::run(fastn_home, command_rx, response_tx).await {
+            eprintln!("❌ P2P service error: {}", e);
+        }
+    });
+    
+    println!("✅ P2P service task spawned");
+    Ok(())
 }
 
 /// Start the control socket service
