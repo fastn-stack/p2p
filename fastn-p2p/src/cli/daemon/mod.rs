@@ -12,8 +12,6 @@ use tokio::sync::broadcast;
 /// Daemon context containing runtime state and lock
 #[derive(Debug)]
 pub struct DaemonContext {
-    pub private_key: fastn_id52::SecretKey,
-    pub peer_id: fastn_id52::PublicKey,
     pub fastn_home: PathBuf,
     pub _lock_file: std::fs::File, // Keep lock file open to maintain exclusive access
 }
@@ -178,13 +176,7 @@ async fn initialize_daemon(fastn_home: &PathBuf) -> Result<DaemonContext, Box<dy
         }
     }
     
-    // Generate a runtime daemon key for internal operations (not for P2P protocols)
-    let daemon_key = fastn_id52::SecretKey::generate();
-    println!("🔧 Generated daemon runtime key: {}", daemon_key.public_key().id52());
-    
     Ok(DaemonContext {
-        private_key: daemon_key.clone(),
-        peer_id: daemon_key.public_key(),
         fastn_home: fastn_home.clone(),
         _lock_file: lock_file,
     })
