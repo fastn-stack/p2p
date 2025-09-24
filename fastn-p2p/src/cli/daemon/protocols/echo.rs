@@ -12,24 +12,7 @@ pub async fn initialize(
     _daemon_key: fastn_id52::SecretKey,
     _response_tx: broadcast::Sender<DaemonResponse>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("🔧 Initializing Echo protocol handler");
-    
-    // TODO: Set up actual P2P listener for Echo protocol using fastn_p2p::listen
-    // let protocols = [TestProtocol::Echo];
-    // let stream = fastn_p2p::listen(daemon_key, &protocols)?;
-    // 
-    // tokio::spawn(async move {
-    //     let mut stream = std::pin::pin!(stream);
-    //     while let Some(request_result) = stream.next().await {
-    //         let request = request_result?;
-    //         fastn_p2p::spawn(async move {
-    //             request.handle(echo_handler).await
-    //         });
-    //     }
-    // });
-    
-    println!("✅ Echo protocol handler ready");
-    Ok(())
+    todo!("Set up P2P listener for Echo protocol, register handler with fastn_p2p::listen");
 }
 
 /// Handle Echo protocol requests

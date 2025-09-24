@@ -37,23 +37,12 @@ pub async fn initialize(
     _daemon_key: fastn_id52::SecretKey,
     _response_tx: broadcast::Sender<DaemonResponse>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("🔧 Initializing Shell protocol handler");
-    
-    // TODO: Set up actual P2P listener for Shell protocol
-    // This would use streaming APIs for bidirectional communication
-    //
-    // let protocols = [TestProtocol::Shell]; 
-    // fastn_p2p::listen(daemon_key)
-    //     .handle_streams(TestProtocol::Shell, (), shell_stream_handler)
-    //     .await?;
-    
-    println!("⚠️  Shell protocol handler ready (SECURITY WARNING: Remote execution enabled)");
-    Ok(())
+    todo!("Set up P2P streaming listener for Shell protocol, register stream handler");
 }
 
 /// Handle Shell protocol streaming sessions
 pub async fn shell_stream_handler(
-    mut _session: fastn_p2p::Session,
+    mut _session: fastn_p2p::Session<&'static str>,
     command: ShellCommand,
     _state: (),
 ) -> Result<(), ShellError> {

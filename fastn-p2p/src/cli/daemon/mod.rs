@@ -7,6 +7,21 @@
 use std::path::PathBuf;
 use tokio::sync::broadcast;
 
+/// Daemon context containing persistent state and identity
+#[derive(Debug, Clone)]
+pub struct DaemonContext {
+    pub private_key: fastn_id52::SecretKey,
+    pub peer_id: fastn_id52::PublicKey,
+    pub fastn_home: PathBuf,
+}
+
+/// Coordination channels for daemon services
+#[derive(Debug)]
+pub struct CoordinationChannels {
+    pub command_tx: broadcast::Sender<DaemonCommand>,
+    pub response_tx: broadcast::Sender<DaemonResponse>,
+}
+
 pub mod control;
 pub mod p2p;
 pub mod protocols;
@@ -54,55 +69,55 @@ pub enum DaemonResponse {
 
 /// Run the fastn-p2p daemon with both control socket and P2P listener
 pub async fn run(fastn_home: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    // Ensure FASTN_HOME directory exists
-    tokio::fs::create_dir_all(&fastn_home).await?;
-
-    // Generate or load daemon private key
-    let daemon_key = get_or_create_daemon_key(&fastn_home).await?;
-    println!("🔑 Daemon peer ID: {}", daemon_key.public_key().id52());
-
-    // Create communication channels between control socket and P2P
-    let (command_tx, _command_rx) = broadcast::channel::<DaemonCommand>(100);
-    let (response_tx, _response_rx) = broadcast::channel::<DaemonResponse>(100);
-
-    // Start P2P listener in background
-    let p2p_task = {
-        let daemon_key = daemon_key.clone();
-        let command_rx = command_tx.subscribe();
-        let response_tx = response_tx.clone();
-        tokio::spawn(async move {
-            if let Err(e) = p2p::run(daemon_key, command_rx, response_tx).await {
-                eprintln!("P2P listener error: {}", e);
-            }
-        })
-    };
-
-    // Start control socket server in foreground
-    let control_task = {
-        let command_tx = command_tx.clone();
-        let response_rx = response_tx.subscribe();
-        tokio::spawn(async move {
-            if let Err(e) = control::run(fastn_home, command_tx, response_rx).await {
-                eprintln!("Control socket error: {}", e);
-            }
-        })
-    };
-
-    println!("🚀 Daemon started successfully");
-    println!("   - P2P listener active");
-    println!("   - Control socket ready");
-
-    // Wait for either task to complete (shouldn't happen in normal operation)
-    tokio::select! {
-        _ = p2p_task => {
-            println!("P2P listener shut down");
-        }
-        _ = control_task => {
-            println!("Control socket shut down");
-        }
-    }
-
+    // Initialize daemon environment
+    let daemon_context = initialize_daemon(&fastn_home).await?;
+    
+    // Set up coordination channels
+    let coordination = setup_coordination_channels().await?;
+    
+    // Start P2P networking layer
+    start_p2p_service(daemon_context.clone(), &coordination).await?;
+    
+    // Start control socket service
+    start_control_service(fastn_home, &coordination).await?;
+    
+    // Run main coordination loop
+    run_coordination_loop(coordination).await?;
+    
     Ok(())
+}
+
+/// Initialize daemon environment and load persistent state
+async fn initialize_daemon(fastn_home: &PathBuf) -> Result<DaemonContext, Box<dyn std::error::Error>> {
+    todo!("Create FASTN_HOME directory, load/generate daemon keys, return context");
+}
+
+/// Set up broadcast channels for coordination between services
+async fn setup_coordination_channels() -> Result<CoordinationChannels, Box<dyn std::error::Error>> {
+    todo!("Create command and response broadcast channels for control<->P2P coordination");
+}
+
+/// Start the P2P networking service
+async fn start_p2p_service(
+    _daemon_context: DaemonContext,
+    _coordination: &CoordinationChannels,
+) -> Result<(), Box<dyn std::error::Error>> {
+    todo!("Initialize iroh endpoint, start protocol handlers, spawn P2P service task");
+}
+
+/// Start the control socket service
+async fn start_control_service(
+    _fastn_home: PathBuf,
+    _coordination: &CoordinationChannels,
+) -> Result<(), Box<dyn std::error::Error>> {
+    todo!("Create Unix socket, bind listener, spawn control service task");
+}
+
+/// Run the main coordination loop that handles service lifecycle
+async fn run_coordination_loop(
+    _coordination: CoordinationChannels,
+) -> Result<(), Box<dyn std::error::Error>> {
+    todo!("Coordinate between control socket and P2P services, handle shutdown signals");
 }
 
 async fn get_or_create_daemon_key(

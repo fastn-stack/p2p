@@ -16,12 +16,7 @@ pub async fn call(
         return Err("Daemon not available".into());
     }
 
-    // TODO: Connect to daemon via Unix socket
-    // TODO: Send JSON request with peer, protocol, and stdin data
-    // TODO: Print response to stdout or error to stderr
-    
-    println!("📤 Would call {} on peer {} via daemon", protocol, peer);
-    Ok(())
+    todo!("Connect to daemon via Unix socket, send JSON request with stdin data, print response to stdout")
 }
 
 /// Open a bidirectional stream to a peer via the daemon
@@ -38,10 +33,5 @@ pub async fn stream(
         return Err("Daemon not available".into());
     }
 
-    // TODO: Connect to daemon via Unix socket
-    // TODO: Send JSON stream request 
-    // TODO: Pipe stdin/stdout bidirectionally
-    
-    println!("🌊 Would stream {} to peer {} via daemon", protocol, peer);
-    Ok(())
+    todo!("Connect to daemon via Unix socket, send JSON stream request, pipe stdin/stdout bidirectionally")
 }
