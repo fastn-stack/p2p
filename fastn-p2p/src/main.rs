@@ -44,6 +44,14 @@ enum Commands {
         #[arg(long, env = "FASTN_HOME")]
         home: Option<PathBuf>,
     },
+    /// Create a new identity and save it to FASTN_HOME/identities/
+    CreateIdentity {
+        /// Identity alias name
+        alias: String,
+        /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
+        #[arg(long, env = "FASTN_HOME")]
+        home: Option<PathBuf>,
+    },
 }
 
 #[fastn_p2p::main]
@@ -64,6 +72,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Stream { peer, protocol, home } => {
             let fastn_home = cli::get_fastn_home(home)?;
             cli::client::stream(fastn_home, peer, protocol).await
+        }
+        Commands::CreateIdentity { alias, home } => {
+            let fastn_home = cli::get_fastn_home(home)?;
+            cli::identity::create_identity(fastn_home, alias).await
         }
     }
 }

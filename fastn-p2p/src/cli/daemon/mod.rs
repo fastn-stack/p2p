@@ -90,43 +90,34 @@ pub async fn run(fastn_home: PathBuf) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
-/// Initialize daemon environment with singleton lock protection
+/// Initialize daemon environment with identity management
 async fn initialize_daemon(fastn_home: &PathBuf) -> Result<DaemonContext, Box<dyn std::error::Error>> {
-    // Ensure FASTN_HOME directory exists
-    tokio::fs::create_dir_all(fastn_home).await?;
+    // Use generic server utilities
+    fastn_p2p::server::ensure_fastn_home(fastn_home).await?;
+    let lock_file = fastn_p2p::server::acquire_singleton_lock(fastn_home).await?;
     
-    // Create/open lock file for singleton protection
-    let lock_path = fastn_home.join("lock.file");
-    let lock_file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(&lock_path)?;
-        
-    // Try to acquire exclusive lock - fail immediately if another daemon running
-    if let Err(e) = lock_file.try_lock_exclusive() {
+    // Load all available identities
+    let identities = fastn_p2p::server::load_all_identities(fastn_home).await?;
+    
+    if identities.is_empty() {
         return Err(format!(
-            "❌ Another daemon is already running (lock file: {})\n   Error: {}\n   Shutdown the existing daemon first.", 
-            lock_path.display(), 
-            e
+            "❌ No identities found in {}/identities/\n   Create an identity first with: fastn-p2p create-identity <alias>",
+            fastn_home.display()
         ).into());
     }
     
-    println!("🔒 Acquired exclusive daemon lock: {}", lock_path.display());
-    
-    // Generate runtime private key (not persistent for MVP)
-    let private_key = fastn_id52::SecretKey::generate();
+    // Use the first identity for the daemon (TODO: support multiple)
+    let (alias, private_key) = identities.into_iter().next().unwrap();
     let peer_id = private_key.public_key();
     
-    println!("🔑 Generated runtime daemon key");
+    println!("🔑 Using identity '{}' for daemon", alias);
     println!("   Peer ID: {}", peer_id.id52());
-    println!("   Lock file: {}", lock_path.display());
     
     Ok(DaemonContext {
         private_key,
         peer_id,
         fastn_home: fastn_home.clone(),
-        _lock_file: lock_file, // Keep file open to maintain lock
+        _lock_file: lock_file,
     })
 }
 
