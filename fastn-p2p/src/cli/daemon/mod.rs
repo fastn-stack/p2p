@@ -96,10 +96,10 @@ async fn initialize_daemon(fastn_home: &PathBuf) -> Result<DaemonContext, Box<dy
     fastn_p2p::server::ensure_fastn_home(fastn_home).await?;
     let lock_file = fastn_p2p::server::acquire_singleton_lock(fastn_home).await?;
     
-    // Load all available identities
-    let identities = fastn_p2p::server::load_all_identities(fastn_home).await?;
+    // Load all available identity configurations
+    let identity_configs = fastn_p2p::server::load_all_identities(fastn_home).await?;
     
-    if identities.is_empty() {
+    if identity_configs.is_empty() {
         return Err(format!(
             "❌ No identities found in {}/identities/\n   Create an identity first with: fastn-p2p create-identity <alias>",
             fastn_home.display()
@@ -107,11 +107,20 @@ async fn initialize_daemon(fastn_home: &PathBuf) -> Result<DaemonContext, Box<dy
     }
     
     // Use the first identity for the daemon (TODO: support multiple)
-    let (alias, private_key) = identities.into_iter().next().unwrap();
+    let identity_config = identity_configs.into_iter().next().unwrap();
+    let private_key = identity_config.secret_key.clone();
     let peer_id = private_key.public_key();
     
-    println!("🔑 Using identity '{}' for daemon", alias);
+    println!("🔑 Using identity '{}' for daemon", identity_config.alias);
     println!("   Peer ID: {}", peer_id.id52());
+    println!("   Protocols configured: {}", identity_config.protocols.len());
+    
+    for protocol in &identity_config.protocols {
+        println!("     - {} as '{}' (config: {} bytes)", 
+                protocol.protocol, 
+                protocol.bind_alias,
+                protocol.config.to_string().len());
+    }
     
     Ok(DaemonContext {
         private_key,

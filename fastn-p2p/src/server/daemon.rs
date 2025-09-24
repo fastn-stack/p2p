@@ -8,10 +8,11 @@
 use std::path::PathBuf;
 
 /// Protocol binding configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProtocolBinding {
     pub protocol: String,
     pub bind_alias: String,
+    pub config: serde_json::Value,
 }
 
 /// Identity with protocol bindings
@@ -20,6 +21,78 @@ pub struct IdentityConfig {
     pub alias: String,
     pub secret_key: fastn_id52::SecretKey,
     pub protocols: Vec<ProtocolBinding>,
+}
+
+/// Serializable version of IdentityConfig (without secret key)
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct IdentityConfigSerialized {
+    alias: String,
+    protocols: Vec<ProtocolBinding>,
+}
+
+impl IdentityConfig {
+    /// Create a new identity config with no protocols
+    pub fn new(alias: String, secret_key: fastn_id52::SecretKey) -> Self {
+        Self {
+            alias,
+            secret_key,
+            protocols: Vec::new(),
+        }
+    }
+    
+    /// Add a protocol binding to this identity
+    pub fn add_protocol(mut self, protocol: String, bind_alias: String, config: serde_json::Value) -> Self {
+        self.protocols.push(ProtocolBinding {
+            protocol,
+            bind_alias,
+            config,
+        });
+        self
+    }
+    
+    /// Save this identity config to the identities directory
+    pub async fn save_to_dir(&self, identities_dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+        // Only save secret key if it doesn't exist yet
+        let key_path = identities_dir.join(format!("{}.private-key", self.alias));
+        if !key_path.exists() {
+            self.secret_key.save_to_dir(identities_dir, &self.alias)?;
+        }
+        
+        // Always save the configuration (without secret key)
+        let config_path = identities_dir.join(format!("{}.config.json", self.alias));
+        let serializable = IdentityConfigSerialized {
+            alias: self.alias.clone(),
+            protocols: self.protocols.clone(),
+        };
+        let config_json = serde_json::to_string_pretty(&serializable)?;
+        tokio::fs::write(&config_path, config_json).await?;
+        
+        Ok(())
+    }
+    
+    /// Load identity config from directory
+    pub async fn load_from_dir(identities_dir: &PathBuf, alias: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        // Load the secret key
+        let (_id52, secret_key) = fastn_id52::SecretKey::load_from_dir(identities_dir, alias)?;
+        
+        // Try to load configuration
+        let config_path = identities_dir.join(format!("{}.config.json", alias));
+        let mut config = if config_path.exists() {
+            let config_json = tokio::fs::read_to_string(&config_path).await?;
+            let serialized: IdentityConfigSerialized = serde_json::from_str(&config_json)?;
+            IdentityConfig {
+                alias: serialized.alias,
+                secret_key,
+                protocols: serialized.protocols,
+            }
+        } else {
+            // No config file, create default
+            IdentityConfig::new(alias.to_string(), secret_key)
+        };
+        
+        config.alias = alias.to_string(); // Ensure alias matches directory name
+        Ok(config)
+    }
 }
 
 /// Server configuration for multiple identities and protocols
@@ -32,10 +105,10 @@ pub async fn ensure_fastn_home(fastn_home: &PathBuf) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-/// Load all identities from FASTN_HOME/identities/ directory
+/// Load all identity configurations from FASTN_HOME/identities/ directory
 pub async fn load_all_identities(
     fastn_home: &PathBuf,
-) -> Result<Vec<(String, fastn_id52::SecretKey)>, Box<dyn std::error::Error>> {
+) -> Result<Vec<IdentityConfig>, Box<dyn std::error::Error>> {
     let identities_dir = fastn_home.join("identities");
     
     if !identities_dir.exists() {
@@ -50,9 +123,9 @@ pub async fn load_all_identities(
         
         if path.extension().and_then(|s| s.to_str()) == Some("private-key") {
             if let Some(alias) = path.file_stem().and_then(|s| s.to_str()) {
-                match fastn_id52::SecretKey::load_from_dir(&identities_dir, alias) {
-                    Ok((_id52, secret_key)) => {
-                        identities.push((alias.to_string(), secret_key));
+                match IdentityConfig::load_from_dir(&identities_dir, alias).await {
+                    Ok(identity_config) => {
+                        identities.push(identity_config);
                     }
                     Err(e) => {
                         eprintln!("⚠️  Failed to load identity '{}': {}", alias, e);

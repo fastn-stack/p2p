@@ -52,6 +52,45 @@ enum Commands {
         #[arg(long, env = "FASTN_HOME")]
         home: Option<PathBuf>,
     },
+    /// Add a protocol binding to an identity
+    AddProtocol {
+        /// Identity alias name
+        #[arg(long)]
+        identity: String,
+        /// Protocol name to add
+        #[arg(long)]
+        protocol: String,
+        /// Bind alias for this protocol instance (defaults to "default")
+        #[arg(long, default_value = "default")]
+        alias: String,
+        /// Protocol configuration as JSON string
+        #[arg(long)]
+        config: String,
+        /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
+        #[arg(long, env = "FASTN_HOME")]
+        home: Option<PathBuf>,
+    },
+    /// Remove a protocol binding from an identity
+    RemoveProtocol {
+        /// Identity alias name
+        #[arg(long)]
+        identity: String,
+        /// Protocol name to remove
+        #[arg(long)]
+        protocol: String,
+        /// Bind alias to remove (defaults to "default")
+        #[arg(long, default_value = "default")]
+        alias: String,
+        /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
+        #[arg(long, env = "FASTN_HOME")]
+        home: Option<PathBuf>,
+    },
+    /// List all identities and their protocol configurations
+    ListIdentities {
+        /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
+        #[arg(long, env = "FASTN_HOME")]
+        home: Option<PathBuf>,
+    },
 }
 
 #[fastn_p2p::main]
@@ -76,6 +115,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::CreateIdentity { alias, home } => {
             let fastn_home = cli::get_fastn_home(home)?;
             cli::identity::create_identity(fastn_home, alias).await
+        }
+        Commands::AddProtocol { identity, protocol, alias, config, home } => {
+            let fastn_home = cli::get_fastn_home(home)?;
+            cli::identity::add_protocol(fastn_home, identity, protocol, alias, config).await
+        }
+        Commands::RemoveProtocol { identity, protocol, alias, home } => {
+            let fastn_home = cli::get_fastn_home(home)?;
+            cli::identity::remove_protocol(fastn_home, identity, protocol, alias).await
+        }
+        Commands::ListIdentities { home } => {
+            let fastn_home = cli::get_fastn_home(home)?;
+            cli::identity::list_identities(fastn_home).await
         }
     }
 }

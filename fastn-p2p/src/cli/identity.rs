@@ -36,6 +36,110 @@ pub async fn create_identity(
     Ok(())
 }
 
+/// Add a protocol binding to an identity
+pub async fn add_protocol(
+    fastn_home: PathBuf,
+    identity: String,
+    protocol: String,
+    bind_alias: String,
+    config_json: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let identities_dir = fastn_home.join("identities");
+    
+    // Parse JSON config
+    let config: serde_json::Value = serde_json::from_str(&config_json)
+        .map_err(|e| format!("Invalid JSON config: {}", e))?;
+    
+    // Load existing identity config
+    let mut identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
+        .map_err(|e| format!("Identity '{}' not found: {}", identity, e))?;
+    
+    // Check if binding already exists
+    if identity_config.protocols.iter().any(|p| p.protocol == protocol && p.bind_alias == bind_alias) {
+        return Err(format!("Protocol binding '{}' as '{}' already exists for identity '{}'", protocol, bind_alias, identity).into());
+    }
+    
+    // Add protocol binding
+    identity_config = identity_config.add_protocol(protocol.clone(), bind_alias.clone(), config.clone());
+    
+    // Save updated config
+    identity_config.save_to_dir(&identities_dir).await?;
+    
+    println!("➕ Added protocol binding to identity '{}'", identity);
+    println!("   Protocol: {} as '{}'", protocol, bind_alias);
+    println!("   Config: {}", serde_json::to_string_pretty(&config)?);
+    println!("✅ Protocol binding saved");
+    
+    Ok(())
+}
+
+/// Remove a protocol binding from an identity
+pub async fn remove_protocol(
+    fastn_home: PathBuf,
+    identity: String,
+    protocol: String,
+    bind_alias: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let identities_dir = fastn_home.join("identities");
+    
+    // Load existing identity config
+    let mut identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
+        .map_err(|e| format!("Identity '{}' not found: {}", identity, e))?;
+    
+    // Find and remove the protocol binding
+    let original_count = identity_config.protocols.len();
+    identity_config.protocols.retain(|p| !(p.protocol == protocol && p.bind_alias == bind_alias));
+    
+    if identity_config.protocols.len() == original_count {
+        return Err(format!("Protocol binding '{}' as '{}' not found for identity '{}'", protocol, bind_alias, identity).into());
+    }
+    
+    // Save updated config
+    identity_config.save_to_dir(&identities_dir).await?;
+    
+    println!("➖ Removed protocol binding from identity '{}'", identity);
+    println!("   Protocol: {} as '{}'", protocol, bind_alias);
+    println!("✅ Protocol binding removed");
+    
+    Ok(())
+}
+
+/// List all identities and their protocol configurations
+pub async fn list_identities(
+    fastn_home: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let identity_configs = fastn_p2p::server::load_all_identities(&fastn_home).await?;
+    
+    if identity_configs.is_empty() {
+        println!("📭 No identities found in {}/identities/", fastn_home.display());
+        println!("   Create an identity with: fastn-p2p create-identity <alias>");
+        return Ok(());
+    }
+    
+    println!("📋 Found {} identities in {}/identities/:", identity_configs.len(), fastn_home.display());
+    println!();
+    
+    for identity in &identity_configs {
+        println!("🔑 Identity: {}", identity.alias);
+        println!("   Peer ID: {}", identity.secret_key.public_key().id52());
+        println!("   Protocols: {}", identity.protocols.len());
+        
+        if identity.protocols.is_empty() {
+            println!("     (no protocols configured)");
+        } else {
+            for protocol in &identity.protocols {
+                println!("     - {} as '{}' (config: {} bytes)", 
+                        protocol.protocol, 
+                        protocol.bind_alias,
+                        protocol.config.to_string().len());
+            }
+        }
+        println!();
+    }
+    
+    Ok(())
+}
+
 /// Load all identities from FASTN_HOME/identities/ directory
 pub async fn load_all_identities(
     fastn_home: &PathBuf,
