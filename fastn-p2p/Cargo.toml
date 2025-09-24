@@ -13,6 +13,8 @@ path = "src/main.rs"
 [dependencies]
 clap = { workspace = true, features = ["env"] }
 directories.workspace = true
+rand = "0.8"
+chrono.workspace = true
 fastn-net = { path = "../fastn-net", version = "0.1.2" }
 fastn-id52 = { path = "../fastn-id52", version = "0.1.1" }
 async-stream.workspace = true
