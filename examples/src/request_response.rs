@@ -1,18 +1,16 @@
-//! Request/Response Pattern Example (Client-Only)
+//! Request/Response Pattern Example (Client + Server)
 //!
-//! Demonstrates the lightweight fastn-p2p-client making requests via daemon.
-//! Server logic is now implemented as a protocol in the fastn-p2p daemon.
+//! Demonstrates both client and server sides of the Echo protocol.
+//! Can run as either client (via lightweight fastn-p2p-client) or server (using fastn-p2p server APIs).
 //!
 //! Usage:
-//!   1. Start daemon: fastn-p2p daemon
-//!   2. Configure Echo protocol on an identity in the daemon  
-//!   3. Run client: cargo run --bin request_response <peer_id52> [message]
+//!   Server: cargo run --bin request_response server [identity_name]
+//!   Client: cargo run --bin request_response client <peer_id52> [message]
 
 use fastn_p2p_client;
-
-// Import protocol types from the daemon (for client usage)
 use serde::{Serialize, Deserialize};
 
+// Echo Protocol Definition
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum EchoProtocol {
     Echo,
@@ -41,20 +39,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     
     if args.len() < 2 {
-        eprintln!("Usage: {} <peer_id52> [message]", args[0]);
+        eprintln!("Usage:");
+        eprintln!("  {} server [identity_name]           # Start Echo protocol server", args[0]);
+        eprintln!("  {} client <peer_id52> [message]     # Send Echo request to server", args[0]);
         eprintln!("");
-        eprintln!("This client connects to a fastn-p2p daemon and sends Echo requests.");
-        eprintln!("Make sure the daemon is running with an Echo protocol configured:");
-        eprintln!("  1. fastn-p2p daemon");
-        eprintln!("  2. fastn-p2p create-identity alice");
-        eprintln!("  3. fastn-p2p add-protocol alice --protocol Echo --config '{{\"max_message_length\": 1000}}'");
+        eprintln!("Two-daemon testing setup:");
+        eprintln!("  1. Terminal 1: FASTN_HOME=/tmp/alice fastn-p2p daemon");
+        eprintln!("  2. Terminal 2: FASTN_HOME=/tmp/bob fastn-p2p daemon");  
+        eprintln!("  3. Terminal 3: FASTN_HOME=/tmp/alice {} server alice", args[0]);
+        eprintln!("  4. Terminal 4: FASTN_HOME=/tmp/bob {} client <alice_id52> \"Hello!\"", args[0]);
         return Ok(());
     }
     
-    let target_id52 = &args[1];
-    let message = args.get(2).unwrap_or(&"Hello P2P via daemon!".to_string()).clone();
+    match args[1].as_str() {
+        "server" => {
+            let identity = args.get(2).unwrap_or(&"alice".to_string()).clone();
+            run_server(identity).await
+        }
+        "client" => {
+            if args.len() < 3 {
+                return Err("Client mode requires peer_id52 argument".into());
+            }
+            let target_id52 = &args[2];
+            let message = args.get(3).unwrap_or(&"Hello P2P via daemon!".to_string()).clone();
+            run_client(target_id52, message).await
+        }
+        _ => {
+            return Err("First argument must be 'server' or 'client'".into());
+        }
+    }
+}
+
+async fn run_server(identity: String) -> Result<(), Box<dyn std::error::Error>> {
+    println!("🎧 Starting Echo protocol server for identity: {}", identity);
+    println!("📡 Server will handle Echo requests via fastn-p2p server APIs");
     
-    run_client(target_id52, message).await
+    // TODO: Use fastn_p2p server APIs to listen for Echo protocol requests
+    // This will use the clean server APIs from fastn-p2p crate
+    todo!("Implement Echo protocol server using fastn_p2p::listen() or similar server API");
 }
 
 async fn run_client(
@@ -71,8 +93,8 @@ async fn run_client(
     
     // Use lightweight client that routes through daemon
     let result: EchoResult = fastn_p2p_client::call(
-        "alice",              // From alice identity (daemon manages keys)
-        target_peer,          // To target peer (typed)
+        "bob",                // From bob identity (daemon manages keys)
+        target_peer,          // To target peer (alice)
         "Echo",               // Echo protocol
         "default",            // Default Echo instance
         request               // Request data
@@ -84,4 +106,21 @@ async fn run_client(
     }
     
     Ok(())
+}
+
+/// Echo request handler (server-side logic)
+pub async fn echo_handler(req: EchoRequest) -> Result<EchoResponse, EchoError> {
+    println!("💬 Server received: {}", req.message);
+    
+    // Basic validation
+    if req.message.is_empty() {
+        return Err(EchoError::InvalidMessage("Message cannot be empty".to_string()));
+    }
+    
+    let response = EchoResponse {
+        echoed: format!("Echo from server: {}", req.message),
+    };
+    
+    println!("📤 Server responding: {}", response.echoed);
+    Ok(response)
 }
