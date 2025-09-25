@@ -220,24 +220,48 @@ async fn handle_p2p_call(
         }
     };
     
-    // Use fastn_net connection pooling for P2P
-    println!("🔌 Would connect to {} via fastn_net connection pool", to_peer.id52());
-    println!("🔑 Using identity key: {}", from_key.public_key().id52());
+    // Create endpoint for this identity
+    println!("🔌 Creating P2P endpoint for identity: {}", from_key.public_key().id52());
+    let endpoint = fastn_net::get_endpoint(from_key).await?;
     
-    // TODO: Fix fastn_net::get_stream() API call - signature is complex
-    // let (mut p2p_sender, mut p2p_receiver) = fastn_net::get_stream(...).await?;
+    // Create protocol header - for now use a basic protocol like Ping
+    // TODO: Map daemon protocol strings to fastn_net Protocol enum variants  
+    let protocol_header = fastn_net::ProtocolHeader {
+        protocol: fastn_net::Protocol::Ping,  // Use Ping as placeholder for daemon protocols
+        extra: Some(format!("{}:{}", protocol, bind_alias)),  // Include actual protocol info in extra
+    };
     
-    println!("📤 Would send request to P2P: {}", request);
-    println!("📥 Would receive P2P response");
+    // Use global singletons for connection pooling and graceful shutdown
+    let pool = fastn_p2p::pool();
+    let graceful = fastn_p2p::graceful();
     
-    // For now, simulate successful P2P call
-    let simulated_response = format!("Simulated P2P response for protocol {} to {}", protocol, to_peer.id52());
+    println!("🔌 Getting P2P stream to {} via connection pool", to_peer.id52());
+    let (mut p2p_sender, mut p2p_receiver) = fastn_net::get_stream(
+        endpoint, 
+        protocol_header, 
+        &to_peer, 
+        pool, 
+        graceful
+    ).await?;
+    
+    // Send the request data to P2P
+    println!("📤 Sending request to P2P: {}", request);
+    let request_bytes = serde_json::to_vec(&request)?;
+    use tokio::io::AsyncWriteExt;
+    p2p_sender.write_all(&request_bytes).await?;
+    p2p_sender.finish()?; // Remove .await - it's not async
+    
+    // Read response from P2P 
+    let response_bytes = p2p_receiver.read_to_end(1024 * 1024).await?; // 1MB limit
+    let response_str = String::from_utf8_lossy(&response_bytes);
+    
+    println!("📥 Received P2P response: {} bytes", response_bytes.len());
     
     // Send response back to Unix socket client
     let response = ClientResponse {
         success: true,
         data: serde_json::json!({
-            "p2p_response": simulated_response,
+            "p2p_response": response_str,
             "protocol": protocol,
             "bind_alias": bind_alias,
             "from_identity": from_identity
