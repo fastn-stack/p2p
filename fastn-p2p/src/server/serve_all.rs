@@ -29,11 +29,12 @@ pub type StreamCallback = fn(
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
 /// Lifecycle callback types for protocol management (per binding)
-pub type InitCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
-pub type LoadCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type CreateCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type ActivateCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type DeactivateCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 pub type CheckCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 pub type ReloadCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
-pub type StopCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type DeleteCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
 /// Global lifecycle callback types (across all protocol bindings)
 pub type GlobalLoadCallback = fn(&str) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
@@ -46,11 +47,12 @@ pub struct ProtocolBuilder {
     stream_callbacks: HashMap<String, StreamCallback>,    // Key: command name
     
     // Per-binding lifecycle callbacks
-    init_callback: Option<InitCallback>,
-    load_callback: Option<LoadCallback>,
+    create_callback: Option<CreateCallback>,
+    activate_callback: Option<ActivateCallback>,
+    deactivate_callback: Option<DeactivateCallback>,
     check_callback: Option<CheckCallback>,
     reload_callback: Option<ReloadCallback>,
-    stop_callback: Option<StopCallback>,
+    delete_callback: Option<DeleteCallback>,
     
     // Global protocol lifecycle callbacks  
     global_load_callback: Option<GlobalLoadCallback>,
@@ -78,25 +80,38 @@ impl ProtocolBuilder {
         self
     }
     
-    /// Protocol initialization (first-time setup, per binding)
-    pub fn on_init(mut self, callback: InitCallback) -> Self {
-        if self.init_callback.is_some() {
-            panic!("Duplicate on_init for protocol '{}' - can only register once", self.protocol_name);
+    /// Protocol creation (called from: fastn-p2p add-protocol)
+    /// Creates workspace, default configs, initial setup
+    pub fn on_create(mut self, callback: CreateCallback) -> Self {
+        if self.create_callback.is_some() {
+            panic!("Duplicate on_create for protocol '{}' - can only register once", self.protocol_name);
         }
-        self.init_callback = Some(callback);
+        self.create_callback = Some(callback);
         self
     }
     
-    /// Protocol loading (start services, per binding)
-    pub fn on_load(mut self, callback: LoadCallback) -> Self {
-        if self.load_callback.is_some() {
-            panic!("Duplicate on_load for protocol '{}' - can only register once", self.protocol_name);
+    /// Protocol activation (called from: fastn-p2p start, daemon startup)
+    /// Start services, begin accepting requests
+    pub fn on_activate(mut self, callback: ActivateCallback) -> Self {
+        if self.activate_callback.is_some() {
+            panic!("Duplicate on_activate for protocol '{}' - can only register once", self.protocol_name);
         }
-        self.load_callback = Some(callback);
+        self.activate_callback = Some(callback);
         self
     }
     
-    /// Protocol configuration check (per binding)
+    /// Protocol deactivation (called from: fastn-p2p stop mail default)
+    /// Stop accepting requests, but preserve data
+    pub fn on_deactivate(mut self, callback: DeactivateCallback) -> Self {
+        if self.deactivate_callback.is_some() {
+            panic!("Duplicate on_deactivate for protocol '{}' - can only register once", self.protocol_name);
+        }
+        self.deactivate_callback = Some(callback);
+        self
+    }
+    
+    /// Protocol configuration check (called from: fastn-p2p check)
+    /// Validate configuration without affecting runtime
     pub fn on_check(mut self, callback: CheckCallback) -> Self {
         if self.check_callback.is_some() {
             panic!("Duplicate on_check for protocol '{}' - can only register once", self.protocol_name);
@@ -105,7 +120,8 @@ impl ProtocolBuilder {
         self
     }
     
-    /// Protocol reload (restart with new config, per binding)
+    /// Protocol reload (called from: fastn-p2p reload mail default)
+    /// Re-read config, restart services with new settings
     pub fn on_reload(mut self, callback: ReloadCallback) -> Self {
         if self.reload_callback.is_some() {
             panic!("Duplicate on_reload for protocol '{}' - can only register once", self.protocol_name);
@@ -114,12 +130,13 @@ impl ProtocolBuilder {
         self
     }
     
-    /// Protocol stop (clean shutdown, per binding)
-    pub fn on_stop(mut self, callback: StopCallback) -> Self {
-        if self.stop_callback.is_some() {
-            panic!("Duplicate on_stop for protocol '{}' - can only register once", self.protocol_name);
+    /// Protocol deletion (called from: fastn-p2p delete mail default)
+    /// Complete cleanup, remove all data and configs
+    pub fn on_delete(mut self, callback: DeleteCallback) -> Self {
+        if self.delete_callback.is_some() {
+            panic!("Duplicate on_delete for protocol '{}' - can only register once", self.protocol_name);
         }
-        self.stop_callback = Some(callback);
+        self.delete_callback = Some(callback);
         self
     }
     
@@ -176,11 +193,12 @@ impl ServeAllBuilder {
             protocol_name: protocol_name.to_string(),
             request_callbacks: HashMap::new(),
             stream_callbacks: HashMap::new(),
-            init_callback: None,
-            load_callback: None,
+            create_callback: None,
+            activate_callback: None,
+            deactivate_callback: None,
             check_callback: None,
             reload_callback: None,
-            stop_callback: None,
+            delete_callback: None,
             global_load_callback: None,
             global_unload_callback: None,
         };
