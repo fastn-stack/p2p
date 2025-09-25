@@ -188,14 +188,54 @@ async fn route_client_request(
 
 /// Handle P2P call request - use fastn_net::get_stream() for connection pooling
 async fn handle_p2p_call(
-    _from_identity: String,
-    _to_peer: fastn_id52::PublicKey,
-    _protocol: String,
-    _bind_alias: String,
-    _request: serde_json::Value,
-    _unix_writer: tokio::net::unix::OwnedWriteHalf,
+    from_identity: String,
+    to_peer: fastn_id52::PublicKey,
+    protocol: String,
+    bind_alias: String,
+    request: serde_json::Value,
+    mut unix_writer: tokio::net::unix::OwnedWriteHalf,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    todo!("Use fastn_net::get_stream() to get P2P connection, send request, pipe response back to Unix socket");
+    println!("📞 P2P call: {} {} from {} to {}", protocol, bind_alias, from_identity, to_peer.id52());
+    
+    // TODO: Load from_identity private key from daemon identity management
+    // For now, generate temporary key to test P2P connection
+    let from_key = fastn_id52::SecretKey::generate();
+    println!("🔑 Using temporary key for from_identity: {} (TODO: load real key)", from_identity);
+    
+    // Use fastn_net::get_stream() for connection pooling 
+    println!("🔌 Getting P2P stream to {} via fastn_net connection pool", to_peer.id52());
+    let (mut p2p_sender, mut p2p_receiver) = fastn_net::get_stream(from_key, to_peer, protocol).await?;
+    
+    // Send the request data to P2P
+    println!("📤 Sending request to P2P: {}", request);
+    let request_bytes = serde_json::to_vec(&request)?;
+    use tokio::io::AsyncWriteExt;
+    p2p_sender.write_all(&request_bytes).await?;
+    p2p_sender.finish().await?;
+    
+    // Read response from P2P 
+    use tokio::io::AsyncReadExt;
+    let mut response_buffer = Vec::new();
+    p2p_receiver.read_to_end(&mut response_buffer).await?;
+    
+    println!("📥 Received P2P response: {} bytes", response_buffer.len());
+    
+    // Send response back to Unix socket client
+    let response = ClientResponse {
+        success: true,
+        data: serde_json::json!({
+            "p2p_response": String::from_utf8_lossy(&response_buffer),
+            "protocol": protocol,
+            "bind_alias": bind_alias
+        }),
+    };
+    
+    let response_json = serde_json::to_string(&response)?;
+    unix_writer.write_all(response_json.as_bytes()).await?;
+    unix_writer.write_all(b"\n").await?;
+    
+    println!("✅ P2P call completed and response sent to client");
+    Ok(())
 }
 
 /// Handle P2P streaming request - bidirectional piping
