@@ -13,6 +13,14 @@ pub async fn create_identity(
     let identities_dir = fastn_home.join("identities");
     tokio::fs::create_dir_all(&identities_dir).await?;
     
+    // Create identity-specific directory
+    let identity_dir = identities_dir.join(&alias);
+    if identity_dir.exists() {
+        return Err(format!("Identity '{}' already exists at: {}", alias, identity_dir.display()).into());
+    }
+    
+    tokio::fs::create_dir_all(&identity_dir).await?;
+    
     // Generate new identity
     let secret_key = fastn_id52::SecretKey::generate();
     let public_key = secret_key.public_key();
@@ -20,17 +28,10 @@ pub async fn create_identity(
     println!("🔑 Generated new identity: {}", alias);
     println!("   Peer ID: {}", public_key.id52());
     
-    // Save to identities directory using alias name
-    let identity_path = identities_dir.join(format!("{}.key", alias));
+    // Save secret key inside identity directory with standard name "identity"
+    secret_key.save_to_dir(&identity_dir, "identity")?;
     
-    if identity_path.exists() {
-        return Err(format!("Identity '{}' already exists at: {}", alias, identity_path.display()).into());
-    }
-    
-    // Use save_to_dir method for proper storage
-    secret_key.save_to_dir(&identities_dir, &alias)?;
-    
-    println!("💾 Saved identity to: {}", identity_path.display());
+    println!("💾 Saved identity to: {}", identity_dir.display());
     println!("✅ Identity '{}' created successfully", alias);
     
     Ok(())
@@ -55,7 +56,7 @@ pub async fn add_protocol(
     tokio::fs::create_dir_all(&protocol_config_path).await?;
     
     // Load existing identity config
-    let mut identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
+    let identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
         .map_err(|e| format!("Identity '{}' not found: {}", identity, e))?;
     
     // Check if binding already exists
@@ -63,20 +64,16 @@ pub async fn add_protocol(
         return Err(format!("Protocol binding '{}' as '{}' already exists for identity '{}'", protocol, bind_alias, identity).into());
     }
     
-    // Initialize the protocol handler using trait interface
-    if let Err(e) = crate::cli::daemon::protocol_trait::init_protocol(&protocol, &bind_alias, &protocol_config_path).await {
-        return Err(format!("Failed to initialize {} protocol: {}", protocol, e).into());
-    }
+    // Initialize the protocol handler - just create the directory and config for now
+    // TODO: Hook into serve_all protocol handlers for proper initialization
+    tokio::fs::create_dir_all(&protocol_config_path).await?;
     
     // Write the initial config JSON to the protocol directory
     let config_file = protocol_config_path.join(format!("{}.json", protocol.to_lowercase()));
     tokio::fs::write(&config_file, serde_json::to_string_pretty(&config)?).await?;
     
-    // Add protocol binding with config path
-    identity_config = identity_config.add_protocol(protocol.clone(), bind_alias.clone(), protocol_config_path.clone());
-    
-    // Save updated identity config
-    identity_config.save_to_dir(&identities_dir).await?;
+    // Protocol configuration is already saved to the config file above
+    // The identity directory structure auto-discovers protocols via directory scanning
     
     println!("➕ Added protocol binding to identity '{}'", identity);
     println!("   Protocol: {} as '{}'", protocol, bind_alias);

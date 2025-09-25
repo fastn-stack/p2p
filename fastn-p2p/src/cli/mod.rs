@@ -3,9 +3,9 @@
 use std::path::PathBuf;
 
 pub mod client;
-pub mod daemon;
 pub mod identity;
 pub mod status;
+pub mod init;
 
 /// Get the FASTN_HOME directory from clap args, environment variable, or default
 pub fn get_fastn_home(custom_home: Option<PathBuf>) -> Result<PathBuf, Box<dyn std::error::Error>> {

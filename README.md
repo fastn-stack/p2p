@@ -63,20 +63,38 @@ let result = fastn_p2p_client::call(
 ).await?;
 ```
 
-### 4. Server Applications
+### 4. Server Applications (Revolutionary!)
 
 ```rust
 // Add to Cargo.toml: fastn-p2p = "0.1"  
 use fastn_p2p;
 
-// Server uses full fastn-p2p crate with daemon utilities
-let private_key = load_identity_key("alice").await?;
-fastn_p2p::listen(private_key)
-    .handle_requests("Echo", echo_handler)
-    .await?;
+// Modern multi-identity server with complete lifecycle
+#[fastn_p2p::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    fastn_p2p::serve_all()
+        .protocol("mail.fastn.com", |p| p
+            .on_global_load(setup_shared_database)
+            .on_create(create_workspace)
+            .on_activate(start_mail_services)
+            .handle_requests("inbox.get-mails", get_mails_handler)
+            .handle_requests("send.send-mail", send_mail_handler)
+            .handle_requests("settings.add-forwarding", forwarding_handler)
+            .handle_streams("sync.imap-sync", imap_sync_handler)
+            .on_deactivate(stop_mail_services)
+            .on_delete(cleanup_workspace)
+            .on_global_unload(cleanup_shared_database)
+        )
+        .serve()
+        .await
+}
 
-async fn echo_handler(req: EchoRequest) -> Result<EchoResponse, EchoError> {
-    Ok(EchoResponse { echoed: format!("Echo: {}", req.message) })
+fn create_workspace(ctx: BindingContext) -> impl Future<Output = Result<(), Error>> {
+    async move {
+        // Create mail storage dirs in ctx.protocol_dir for ctx.identity
+        println!("Creating workspace for {} ({})", ctx.identity.id52(), ctx.bind_alias);
+        Ok(())
+    }
 }
 ```
 

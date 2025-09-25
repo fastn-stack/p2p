@@ -153,8 +153,14 @@ mod macros;
 // Export server module (client is now separate fastn-p2p-client crate)
 pub mod server;
 
+// Export CLI module for magic CLI capabilities in serve_all
+pub mod cli;
+
 // Re-export modern server API for convenience
 pub use server::{serve_all, echo_request_handler};
+
+// Re-export serve_all types for convenience
+pub use server::serve_all::BindingContext;
 
 // Re-export essential types from fastn-net that users need
 pub use fastn_net::{Graceful, Protocol};

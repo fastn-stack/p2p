@@ -53,7 +53,7 @@ use std::pin::Pin;
 use std::future::Future;
 
 fn echo_create_handler(
-    ctx: fastn_p2p::server::BindingContext,
+    ctx: fastn_p2p::BindingContext,
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
     Box::pin(async move {
         println!("🔧 Echo create: {} {} ({})", ctx.identity.id52(), ctx.bind_alias, ctx.protocol_dir.display());
@@ -63,7 +63,7 @@ fn echo_create_handler(
 }
 
 fn echo_activate_handler(
-    ctx: fastn_p2p::server::BindingContext,
+    ctx: fastn_p2p::BindingContext,
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
     Box::pin(async move {
         println!("🚀 Echo activate: {} {} ({})", ctx.identity.id52(), ctx.bind_alias, ctx.protocol_dir.display());
@@ -73,7 +73,7 @@ fn echo_activate_handler(
 }
 
 fn echo_check_handler(
-    ctx: fastn_p2p::server::BindingContext,
+    ctx: fastn_p2p::BindingContext,
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
     Box::pin(async move {
         println!("🔍 Echo check: {} {} ({})", ctx.identity.id52(), ctx.bind_alias, ctx.protocol_dir.display());
@@ -83,7 +83,7 @@ fn echo_check_handler(
 }
 
 fn echo_reload_handler(
-    ctx: fastn_p2p::server::BindingContext,
+    ctx: fastn_p2p::BindingContext,
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
     Box::pin(async move {
         println!("🔄 Echo reload: {} {} ({})", ctx.identity.id52(), ctx.bind_alias, ctx.protocol_dir.display());
@@ -93,7 +93,7 @@ fn echo_reload_handler(
 }
 
 fn echo_deactivate_handler(
-    ctx: fastn_p2p::server::BindingContext,
+    ctx: fastn_p2p::BindingContext,
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
     Box::pin(async move {
         println!("🛑 Echo deactivate: {} {} ({})", ctx.identity.id52(), ctx.bind_alias, ctx.protocol_dir.display());
