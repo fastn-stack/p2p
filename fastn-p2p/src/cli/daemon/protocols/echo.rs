@@ -7,12 +7,44 @@ use tokio::sync::broadcast;
 use crate::cli::daemon::test_protocols::{EchoRequest, EchoResponse, EchoError};
 use super::super::{DaemonResponse};
 
-/// Initialize the Echo protocol handler
-pub async fn initialize(
-    _daemon_key: fastn_id52::SecretKey,
-    _response_tx: broadcast::Sender<DaemonResponse>,
+/// Initialize the Echo protocol handler - creates config directory and default config
+pub async fn init(
+    bind_alias: String,
+    config_path: std::path::PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Set up P2P listener for Echo protocol, register handler with fastn_p2p::listen");
+    todo!("Create config directory, write default echo.json config file, set up protocol workspace");
+}
+
+/// Load the Echo protocol handler - assumes config already exists
+pub async fn load(
+    bind_alias: String,
+    config_path: std::path::PathBuf,
+    identity_key: fastn_id52::SecretKey,
+) -> Result<(), Box<dyn std::error::Error>> {
+    todo!("Read config from config_path/echo.json, start P2P listener, register echo handlers");
+}
+
+/// Reload the Echo protocol handler - re-read config and restart services
+pub async fn reload(
+    bind_alias: String,
+    config_path: std::path::PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    todo!("Stop current service, re-read config, restart P2P listener with new config");
+}
+
+/// Stop the Echo protocol handler
+pub async fn stop(
+    bind_alias: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    todo!("Clean shutdown of Echo protocol P2P listener and handlers");
+}
+
+/// Check Echo protocol configuration without changing runtime
+pub async fn check(
+    bind_alias: String,
+    config_path: std::path::PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    todo!("Validate config_path/echo.json exists, is valid JSON, has required fields, report any issues");
 }
 
 /// Handle Echo protocol requests

@@ -81,11 +81,11 @@ async fn show_identities_status(fastn_home: &PathBuf) -> Result<(), Box<dyn std:
             println!("     📡 Protocols: {}", identity.protocols.len());
             for protocol in &identity.protocols {
                 let protocol_status = if identity.online { "🟢" } else { "⏸️" };
-                println!("       {} {} as '{}' (config: {} bytes)", 
+                println!("       {} {} as '{}' (config: {})", 
                         protocol_status,
                         protocol.protocol, 
                         protocol.bind_alias,
-                        protocol.config.to_string().len());
+                        protocol.config_path.display());
             }
         }
     }

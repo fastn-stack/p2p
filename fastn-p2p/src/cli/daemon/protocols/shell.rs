@@ -32,12 +32,44 @@ pub enum ShellError {
     Timeout,
 }
 
-/// Initialize the Shell protocol handler
-pub async fn initialize(
-    _daemon_key: fastn_id52::SecretKey,
-    _response_tx: broadcast::Sender<DaemonResponse>,
+/// Initialize the Shell protocol handler - creates config directory and default config
+pub async fn init(
+    bind_alias: String,
+    config_path: std::path::PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Set up P2P streaming listener for Shell protocol, register stream handler");
+    todo!("Create config directory, write default shell.json config file with allowed commands, security settings");
+}
+
+/// Load the Shell protocol handler - assumes config already exists
+pub async fn load(
+    bind_alias: String,
+    config_path: std::path::PathBuf,
+    identity_key: fastn_id52::SecretKey,
+) -> Result<(), Box<dyn std::error::Error>> {
+    todo!("Read config from config_path/shell.json, start P2P streaming listener, register shell handlers");
+}
+
+/// Reload the Shell protocol handler - re-read config and restart services
+pub async fn reload(
+    bind_alias: String,
+    config_path: std::path::PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    todo!("Stop current shell service, re-read config, restart with updated security settings");
+}
+
+/// Stop the Shell protocol handler  
+pub async fn stop(
+    bind_alias: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    todo!("Clean shutdown of Shell protocol streaming listener and command handlers");
+}
+
+/// Check Shell protocol configuration without changing runtime
+pub async fn check(
+    bind_alias: String,
+    config_path: std::path::PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    todo!("Validate config_path/shell.json exists, has valid security settings, allowed commands list, report issues");
 }
 
 /// Handle Shell protocol streaming sessions

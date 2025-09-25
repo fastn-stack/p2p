@@ -7,12 +7,12 @@
 
 use std::path::PathBuf;
 
-/// Protocol binding configuration
+/// Protocol binding configuration with file-based config
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProtocolBinding {
     pub protocol: String,
     pub bind_alias: String,
-    pub config: serde_json::Value,
+    pub config_path: PathBuf,
 }
 
 /// Identity with protocol bindings and online/offline state
@@ -49,11 +49,11 @@ impl IdentityConfig {
     }
     
     /// Add a protocol binding to this identity
-    pub fn add_protocol(mut self, protocol: String, bind_alias: String, config: serde_json::Value) -> Self {
+    pub fn add_protocol(mut self, protocol: String, bind_alias: String, config_path: PathBuf) -> Self {
         self.protocols.push(ProtocolBinding {
             protocol,
             bind_alias,
-            config,
+            config_path,
         });
         self
     }

@@ -46,9 +46,13 @@ pub async fn add_protocol(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let identities_dir = fastn_home.join("identities");
     
-    // Parse JSON config
+    // Parse JSON config for initial setup
     let config: serde_json::Value = serde_json::from_str(&config_json)
         .map_err(|e| format!("Invalid JSON config: {}", e))?;
+    
+    // Create protocol config directory
+    let protocol_config_path = identities_dir.join(&identity).join("protocols").join(&bind_alias);
+    tokio::fs::create_dir_all(&protocol_config_path).await?;
     
     // Load existing identity config
     let mut identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
@@ -59,15 +63,35 @@ pub async fn add_protocol(
         return Err(format!("Protocol binding '{}' as '{}' already exists for identity '{}'", protocol, bind_alias, identity).into());
     }
     
-    // Add protocol binding
-    identity_config = identity_config.add_protocol(protocol.clone(), bind_alias.clone(), config.clone());
+    // Initialize the protocol handler (creates config files)
+    match protocol.as_str() {
+        "Echo" => {
+            use crate::cli::daemon::protocols::echo;
+            echo::init(bind_alias.clone(), protocol_config_path.clone()).await?;
+        }
+        "Shell" => {
+            use crate::cli::daemon::protocols::shell;
+            shell::init(bind_alias.clone(), protocol_config_path.clone()).await?;
+        }
+        _ => {
+            return Err(format!("Unknown protocol: {}", protocol).into());
+        }
+    }
     
-    // Save updated config
+    // Write the initial config JSON to the protocol directory
+    let config_file = protocol_config_path.join(format!("{}.json", protocol.to_lowercase()));
+    tokio::fs::write(&config_file, serde_json::to_string_pretty(&config)?).await?;
+    
+    // Add protocol binding with config path
+    identity_config = identity_config.add_protocol(protocol.clone(), bind_alias.clone(), protocol_config_path.clone());
+    
+    // Save updated identity config
     identity_config.save_to_dir(&identities_dir).await?;
     
     println!("➕ Added protocol binding to identity '{}'", identity);
     println!("   Protocol: {} as '{}'", protocol, bind_alias);
-    println!("   Config: {}", serde_json::to_string_pretty(&config)?);
+    println!("   Config path: {}", protocol_config_path.display());
+    println!("   Config file: {}", config_file.display());
     println!("✅ Protocol binding saved");
     
     Ok(())
