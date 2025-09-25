@@ -154,7 +154,9 @@ async fn route_client_request(
                     protocol, bind_alias, from_identity, to_peer.id52());
             
             // P2P call routing using fastn_net connection pooling
-            handle_p2p_call(from_identity, to_peer, protocol, bind_alias, request, unix_writer).await
+            // TODO: Pass fastn_home for identity lookup - need to thread through from run()
+            let fastn_home = std::path::PathBuf::from("/tmp/test-hardcoded"); // HACK: Need to fix this
+            handle_p2p_call(fastn_home, from_identity, to_peer, protocol, bind_alias, request, unix_writer).await
         }
         ClientRequest::Stream { from_identity, to_peer, protocol, bind_alias, initial_data } => {
             println!("🔀 Routing P2P stream: {} {} from {} to {}", 
@@ -188,6 +190,7 @@ async fn route_client_request(
 
 /// Handle P2P call request - use fastn_net::get_stream() for connection pooling
 async fn handle_p2p_call(
+    fastn_home: PathBuf,
     from_identity: String,
     to_peer: fastn_id52::PublicKey,
     protocol: String,
@@ -197,10 +200,25 @@ async fn handle_p2p_call(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("📞 P2P call: {} {} from {} to {}", protocol, bind_alias, from_identity, to_peer.id52());
     
-    // TODO: Load from_identity private key from daemon identity management
-    // For now, generate temporary key to test P2P connection
-    let from_key = fastn_id52::SecretKey::generate();
-    println!("🔑 Using temporary key for from_identity: {} (TODO: load real key)", from_identity);
+    // Load real identity private key from daemon identity management
+    let from_key = match load_identity_key(&fastn_home, &from_identity).await {
+        Ok(key) => {
+            println!("🔑 Loaded identity key for: {}", from_identity);
+            key
+        }
+        Err(e) => {
+            println!("❌ Failed to load identity '{}': {}", from_identity, e);
+            let error_response = ClientResponse {
+                success: false,
+                data: serde_json::json!({
+                    "error": format!("Identity '{}' not found or offline: {}", from_identity, e)
+                }),
+            };
+            let response_json = serde_json::to_string(&error_response)?;
+            unix_writer.write_all(response_json.as_bytes()).await?;
+            return Ok(());
+        }
+    };
     
     // Use fastn_net::get_stream() for connection pooling 
     println!("🔌 Getting P2P stream to {} via fastn_net connection pool", to_peer.id52());
@@ -226,7 +244,8 @@ async fn handle_p2p_call(
         data: serde_json::json!({
             "p2p_response": String::from_utf8_lossy(&response_buffer),
             "protocol": protocol,
-            "bind_alias": bind_alias
+            "bind_alias": bind_alias,
+            "from_identity": from_identity
         }),
     };
     
@@ -258,4 +277,35 @@ async fn handle_control_command(
     _unix_writer: tokio::net::unix::OwnedWriteHalf,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     todo!("Handle daemon management commands: reload identities, add/remove protocols, set online/offline");
+}
+
+/// Load identity private key from daemon identity management
+async fn load_identity_key(
+    fastn_home: &PathBuf,
+    identity_name: &str,
+) -> Result<fastn_id52::SecretKey, Box<dyn std::error::Error + Send + Sync>> {
+    let identities_dir = fastn_home.join("identities");
+    let identity_dir = identities_dir.join(identity_name);
+    
+    // Check if identity exists
+    if !identity_dir.exists() {
+        return Err(format!("Identity '{}' not found in {}", identity_name, identity_dir.display()).into());
+    }
+    
+    // Check if identity is online
+    let online_marker = identity_dir.join("online");
+    if !online_marker.exists() {
+        return Err(format!("Identity '{}' is offline", identity_name).into());
+    }
+    
+    // Load the identity private key
+    match fastn_id52::SecretKey::load_from_dir(&identity_dir, "identity") {
+        Ok((_id52, secret_key)) => {
+            println!("🔑 Loaded key for identity '{}': {}", identity_name, secret_key.public_key().id52());
+            Ok(secret_key)
+        }
+        Err(e) => {
+            Err(format!("Failed to load key for identity '{}': {}", identity_name, e).into())
+        }
+    }
 }
