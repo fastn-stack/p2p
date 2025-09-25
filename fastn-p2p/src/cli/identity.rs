@@ -63,10 +63,9 @@ pub async fn add_protocol(
         return Err(format!("Protocol binding '{}' as '{}' already exists for identity '{}'", protocol, bind_alias, identity).into());
     }
     
-    // Initialize the protocol handler using trait interface
-    if let Err(e) = crate::cli::daemon::protocol_trait::init_protocol(&protocol, &bind_alias, &protocol_config_path).await {
-        return Err(format!("Failed to initialize {} protocol: {}", protocol, e).into());
-    }
+    // Initialize the protocol handler - just create the directory and config for now
+    // TODO: Hook into serve_all protocol handlers for proper initialization
+    tokio::fs::create_dir_all(&protocol_config_path).await?;
     
     // Write the initial config JSON to the protocol directory
     let config_file = protocol_config_path.join(format!("{}.json", protocol.to_lowercase()));
