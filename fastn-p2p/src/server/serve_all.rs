@@ -28,42 +28,60 @@ pub type StreamCallback = fn(
     serde_json::Value,      // initial_data
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
+/// Protocol command handlers for a specific protocol
+pub struct ProtocolBuilder {
+    protocol_name: String,
+    request_callbacks: HashMap<String, RequestCallback>,  // Key: command name
+    stream_callbacks: HashMap<String, StreamCallback>,    // Key: command name
+}
+
+impl ProtocolBuilder {
+    /// Add a request/response command handler
+    pub fn handle_requests(mut self, command: &str, callback: RequestCallback) -> Self {
+        self.request_callbacks.insert(command.to_string(), callback);
+        self
+    }
+    
+    /// Add a streaming command handler
+    pub fn handle_streams(mut self, command: &str, callback: StreamCallback) -> Self {
+        self.stream_callbacks.insert(command.to_string(), callback);
+        self
+    }
+}
+
 /// Multi-identity server builder that discovers and serves all configured protocols
 pub struct ServeAllBuilder {
     fastn_home: PathBuf,
-    request_callbacks: HashMap<String, RequestCallback>,  // Key: "protocol.command"
-    stream_callbacks: HashMap<String, StreamCallback>,    // Key: "protocol.command"
+    protocols: HashMap<String, ProtocolBuilder>,  // Key: protocol name
 }
 
 impl ServeAllBuilder {
-    /// Register a request/response callback for a protocol command
-    ///
-    /// # Arguments
-    /// * `protocol` - Protocol name (e.g., "mail.fastn.com", "echo.fastn.com")
-    /// * `command` - Command name (e.g., "get-mails", "send-mail", "basic-echo")
-    /// * `callback` - Handler function
+    /// Register handlers for a protocol with nested command structure
     ///
     /// # Example
     /// ```rust,no_run
     /// fastn_p2p::serve_all()
-    ///     .handle_requests("mail.fastn.com", "get-mails", get_mails_handler)
-    ///     .handle_requests("mail.fastn.com", "send-mail", send_mail_handler)
+    ///     .protocol("mail.fastn.com", |p| p
+    ///         .handle_requests("get-mails", get_mails_handler)
+    ///         .handle_requests("send-mail", send_mail_handler)
+    ///         .handle_requests("settings.add-forwarding", forwarding_handler)
+    ///     )
+    ///     .protocol("filetransfer.fastn.com", |p| p
+    ///         .handle_streams("transfer.large-file", large_file_handler)
+    ///     )
     /// ```
-    pub fn handle_requests(mut self, protocol: &str, command: &str, callback: RequestCallback) -> Self {
-        let key = format!("{}.{}", protocol, command);
-        self.request_callbacks.insert(key, callback);
-        self
-    }
-    
-    /// Register a streaming callback for a protocol command
-    ///
-    /// # Arguments
-    /// * `protocol` - Protocol name (e.g., "filetransfer.fastn.com") 
-    /// * `command` - Command name (e.g., "large-file", "media-stream")
-    /// * `callback` - Handler function
-    pub fn handle_streams(mut self, protocol: &str, command: &str, callback: StreamCallback) -> Self {
-        let key = format!("{}.{}", protocol, command);
-        self.stream_callbacks.insert(key, callback);
+    pub fn protocol<F>(mut self, protocol_name: &str, builder_fn: F) -> Self 
+    where
+        F: FnOnce(ProtocolBuilder) -> ProtocolBuilder,
+    {
+        let protocol_builder = ProtocolBuilder {
+            protocol_name: protocol_name.to_string(),
+            request_callbacks: HashMap::new(),
+            stream_callbacks: HashMap::new(),
+        };
+        
+        let configured_protocol = builder_fn(protocol_builder);
+        self.protocols.insert(protocol_name.to_string(), configured_protocol);
         self
     }
     
@@ -142,8 +160,7 @@ pub fn serve_all() -> ServeAllBuilder {
     
     ServeAllBuilder {
         fastn_home,
-        request_callbacks: HashMap::new(),
-        stream_callbacks: HashMap::new(),
+        protocols: HashMap::new(),
     }
 }
 
