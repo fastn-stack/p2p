@@ -33,37 +33,19 @@ pub enum EchoError {
 
 type EchoResult = Result<EchoResponse, EchoError>;
 
+//! Pure protocol server - no CLI parsing needed!
+//! 
+//! Usage:
+//!   1. FASTN_HOME=/tmp/alice fastn-p2p daemon &
+//!   2. FASTN_HOME=/tmp/alice fastn-p2p create-identity alice  
+//!   3. FASTN_HOME=/tmp/alice fastn-p2p add-protocol alice --protocol echo.fastn.com --config '{"max_length": 1000}'
+//!   4. FASTN_HOME=/tmp/alice fastn-p2p identity-online alice
+//!   5. FASTN_HOME=/tmp/alice cargo run --bin request_response
+//!   6. echo '{"message":"Hello"}' | FASTN_HOME=/tmp/alice fastn-p2p call <alice_peer_id> echo.fastn.com basic-echo
+
 #[fastn_p2p::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = std::env::args().collect();
-    
-    if args.len() < 2 {
-        eprintln!("Usage:");
-        eprintln!("  {} init                             # Initialize FASTN_HOME environment", args[0]);
-        eprintln!("  {} run                              # Start Echo protocol server", args[0]);
-        eprintln!("");
-        eprintln!("Testing sequence:");
-        eprintln!("  1. FASTN_HOME=/tmp/alice {} init", args[0]);
-        eprintln!("  2. FASTN_HOME=/tmp/alice fastn-p2p daemon &");
-        eprintln!("  3. FASTN_HOME=/tmp/alice fastn-p2p create-identity alice");
-        eprintln!("  4. FASTN_HOME=/tmp/alice fastn-p2p add-protocol alice --protocol echo.fastn.com");
-        eprintln!("  5. FASTN_HOME=/tmp/alice fastn-p2p identity-online alice");
-        eprintln!("  6. FASTN_HOME=/tmp/alice {} run", args[0]);
-        eprintln!("  7. echo '{{\"message\":\"Hello\"}}' | FASTN_HOME=/tmp/alice fastn-p2p call <alice_peer_id> echo.fastn.com basic-echo");
-        return Ok(());
-    }
-    
-    match args[1].as_str() {
-        "init" => {
-            init_environment().await
-        }
-        "run" => {
-            run_server().await
-        }
-        _ => {
-            return Err("Command must be 'init' or 'run'".into());
-        }
-    }
+    run_server().await
 }
 
 async fn init_environment() -> Result<(), Box<dyn std::error::Error>> {
