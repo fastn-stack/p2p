@@ -79,12 +79,46 @@ impl IdentityConfig {
         Ok(())
     }
     
-    /// Load identity config from directory
-    pub async fn load_from_dir(identities_dir: &PathBuf, alias: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    /// Load identity config from conventional directory structure
+    pub async fn load_from_conventional_dir(identity_dir: &PathBuf, alias: &str) -> Result<Self, Box<dyn std::error::Error>> {
         // Load the secret key
-        let (_id52, secret_key) = fastn_id52::SecretKey::load_from_dir(identities_dir, alias)?;
+        let (_id52, secret_key) = fastn_id52::SecretKey::load_from_dir(identity_dir, "identity")?;
         
-        // Try to load configuration
+        // Check if identity is online (online file exists)
+        let online_marker = identity_dir.join("online");
+        let online = online_marker.exists();
+        
+        // Discover all protocol configurations by scanning protocols/ directory
+        let mut protocols = Vec::new();
+        let protocols_dir = identity_dir.join("protocols");
+        
+        if protocols_dir.exists() {
+            protocols = discover_protocol_bindings(&protocols_dir).await?;
+        }
+        
+        println!("🔍 Discovered identity '{}': {} protocols, {}", 
+                alias, 
+                protocols.len(),
+                if online { "ONLINE" } else { "OFFLINE" });
+        
+        Ok(IdentityConfig {
+            alias: alias.to_string(),
+            secret_key,
+            protocols,
+            online,
+        })
+    }
+    
+    /// Legacy load method for backward compatibility
+    pub async fn load_from_dir(identities_dir: &PathBuf, alias: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        // Try new conventional structure first
+        let identity_dir = identities_dir.join(alias);
+        if identity_dir.exists() {
+            return Self::load_from_conventional_dir(&identity_dir, alias).await;
+        }
+        
+        // Fall back to old structure
+        let (_id52, secret_key) = fastn_id52::SecretKey::load_from_dir(identities_dir, alias)?;
         let config_path = identities_dir.join(format!("{}.config.json", alias));
         let mut config = if config_path.exists() {
             let config_json = tokio::fs::read_to_string(&config_path).await?;
@@ -96,11 +130,10 @@ impl IdentityConfig {
                 online: serialized.online,
             }
         } else {
-            // No config file, create default
             IdentityConfig::new(alias.to_string(), secret_key)
         };
         
-        config.alias = alias.to_string(); // Ensure alias matches directory name
+        config.alias = alias.to_string();
         Ok(config)
     }
 }
@@ -115,7 +148,7 @@ pub async fn ensure_fastn_home(fastn_home: &PathBuf) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-/// Load all identity configurations from FASTN_HOME/identities/ directory
+/// Load all identity configurations using conventional directory structure
 pub async fn load_all_identities(
     fastn_home: &PathBuf,
 ) -> Result<Vec<IdentityConfig>, Box<dyn std::error::Error>> {
@@ -129,11 +162,11 @@ pub async fn load_all_identities(
     let mut dir_entries = tokio::fs::read_dir(&identities_dir).await?;
     
     while let Some(entry) = dir_entries.next_entry().await? {
-        let path = entry.path();
+        let identity_dir = entry.path();
         
-        if path.extension().and_then(|s| s.to_str()) == Some("private-key") {
-            if let Some(alias) = path.file_stem().and_then(|s| s.to_str()) {
-                match IdentityConfig::load_from_dir(&identities_dir, alias).await {
+        if identity_dir.is_dir() {
+            if let Some(alias) = identity_dir.file_name().and_then(|n| n.to_str()) {
+                match IdentityConfig::load_from_conventional_dir(&identity_dir, alias).await {
                     Ok(identity_config) => {
                         identities.push(identity_config);
                     }
@@ -206,4 +239,46 @@ pub async fn acquire_singleton_lock(
     
     println!("🔒 Acquired exclusive daemon lock: {}", lock_path.display());
     Ok(lock_file)
+}
+
+/// Discover protocol bindings from conventional protocols/ directory structure
+async fn discover_protocol_bindings(protocols_dir: &PathBuf) -> Result<Vec<ProtocolBinding>, Box<dyn std::error::Error>> {
+    let mut bindings = Vec::new();
+    let mut protocol_entries = tokio::fs::read_dir(protocols_dir).await?;
+    
+    while let Some(protocol_entry) = protocol_entries.next_entry().await? {
+        let protocol_dir = protocol_entry.path();
+        
+        if protocol_dir.is_dir() {
+            if let Some(protocol_name) = protocol_dir.file_name().and_then(|n| n.to_str()) {
+                // Scan for bind aliases within this protocol directory
+                let mut alias_entries = tokio::fs::read_dir(&protocol_dir).await?;
+                
+                while let Some(alias_entry) = alias_entries.next_entry().await? {
+                    let alias_dir = alias_entry.path();
+                    
+                    if alias_dir.is_dir() {
+                        if let Some(bind_alias) = alias_dir.file_name().and_then(|n| n.to_str()) {
+                            // Check if config.json exists
+                            let config_file = alias_dir.join("config.json");
+                            if config_file.exists() {
+                                bindings.push(ProtocolBinding {
+                                    protocol: protocol_name.to_string(),
+                                    bind_alias: bind_alias.to_string(),
+                                    config_path: alias_dir.clone(),
+                                });
+                                
+                                println!("    📡 Found: {} as '{}' ({})", 
+                                        protocol_name, 
+                                        bind_alias, 
+                                        alias_dir.display());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(bindings)
 }
