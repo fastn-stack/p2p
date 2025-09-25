@@ -10,60 +10,63 @@ use crate::error::{ClientError, ConnectionError};
 /// Make a type-safe request/response call to a remote peer via daemon
 ///
 /// This function connects to the local fastn-p2p daemon via Unix socket,
-/// sends a request, and waits for a response. The API is identical to the
-/// original direct P2P version but uses daemon coordination.
+/// uses a configured identity to send a request, and waits for a response.
 ///
 /// # Parameters
 ///
-/// * `our_key` - Your private key (only used for daemon authentication)
-/// * `target` - The public key of the peer to connect to
-/// * `protocol` - The protocol enum variant for this request type
-/// * `request` - The request data to send
+/// * `from_identity` - Identity name to send from (daemon looks up keys)
+/// * `to_peer` - Target peer ID52 string
+/// * `protocol` - Protocol name string
+/// * `bind_alias` - Protocol bind alias (e.g., "default", "backup")
+/// * `request` - Request data to send
 ///
 /// # Returns
 ///
-/// Returns a nested Result matching the original API:
+/// Returns a nested Result:
 /// - Outer `Result`: Network/daemon communication errors
 /// - Inner `Result`: Application level success vs error
 ///
-/// # Example (matches original examples)
+/// # Example (daemon-based architecture)
 ///
 /// ```rust,no_run
 /// use fastn_p2p_client as fastn_p2p;
 /// use serde::{Serialize, Deserialize};
 ///
-/// #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-/// enum EchoProtocol { Echo }
+/// #[derive(Serialize, Deserialize)]
+/// struct MailRequest { to: String, subject: String, body: String }
 ///
 /// #[derive(Serialize, Deserialize)]
-/// struct EchoRequest { message: String }
-///
-/// #[derive(Serialize, Deserialize)]
-/// struct EchoResponse { echoed: String }
+/// struct MailResponse { message_id: String }
 ///
 /// #[derive(Serialize, Deserialize, thiserror::Error)]
-/// #[error("Echo error")]
-/// struct EchoError;
+/// #[error("Mail error: {reason}")]
+/// struct MailError { reason: String }
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let our_key = fastn_p2p::SecretKey::generate();
-/// let target = fastn_p2p::SecretKey::generate().public_key();
-/// let request = EchoRequest { message: "Hello".to_string() };
+/// let request = MailRequest { 
+///     to: "bob@example.com".to_string(),
+///     subject: "Hello".to_string(), 
+///     body: "Test message".to_string() 
+/// };
 ///
-/// let result: Result<EchoResponse, EchoError> = fastn_p2p::client::call(
-///     our_key, target, EchoProtocol::Echo, request
+/// let result: Result<MailResponse, MailError> = fastn_p2p::call(
+///     "alice",                    // Send from alice identity
+///     "abc123...",               // To this peer  
+///     "Mail",                    // Using Mail protocol
+///     "default",                 // Default Mail server instance
+///     request                    // Request data
 /// ).await?;
 /// # Ok(())
 /// # }
 /// ```
-pub async fn call<PROTOCOL, REQUEST, RESPONSE, ERROR>(
-    _our_key: fastn_id52::SecretKey,
-    target: fastn_id52::PublicKey,
-    protocol: PROTOCOL,
+pub async fn call<REQUEST, RESPONSE, ERROR>(
+    from_identity: &str,
+    to_peer: &str,
+    protocol: &str,
+    bind_alias: &str,
     request: REQUEST,
 ) -> Result<Result<RESPONSE, ERROR>, ClientError>
 where
-    PROTOCOL: serde::Serialize + for<'de> serde::Deserialize<'de> + Clone + PartialEq + std::fmt::Debug + Send + Sync + 'static,
     REQUEST: serde::Serialize + for<'de> serde::Deserialize<'de>,
     RESPONSE: serde::Serialize + for<'de> serde::Deserialize<'de>,
     ERROR: serde::Serialize + for<'de> serde::Deserialize<'de>,
@@ -73,14 +76,12 @@ where
     
     if !socket_path.exists() {
         return Err(ClientError::DaemonConnection(
-            format!("Daemon not running. Socket not found: {}", socket_path.display())
+            format!("Daemon not running. Socket not found: {}. Start with: fastn-p2p daemon", socket_path.display())
         ));
     }
     
-    println!("🔌 Connecting to daemon at: {}", socket_path.display());
-    println!("📤 Sending {} request to {}", 
-             std::any::type_name::<PROTOCOL>(), 
-             target.id52());
+    println!("🔌 Connecting to daemon as identity '{}'", from_identity);
+    println!("📤 Sending {} {} request to {}", protocol, bind_alias, to_peer);
     
     // Connect to Unix socket  
     let mut stream = tokio::net::UnixStream::connect(&socket_path).await
@@ -90,9 +91,11 @@ where
     let daemon_request = serde_json::json!({
         "id": uuid::Uuid::new_v4().to_string(),
         "type": "call",
-        "target": target.id52(),
-        "protocol": format!("{:?}", protocol),
-        "data": request
+        "from_identity": from_identity,
+        "to_peer": to_peer,
+        "protocol": protocol,
+        "bind_alias": bind_alias,
+        "request": request
     });
     
     // Send request to daemon
@@ -117,7 +120,7 @@ where
     
     // For now, return hardcoded success to test coordination
     // TODO: Parse actual daemon response and deserialize RESPONSE/ERROR
-    return Err(ClientError::DaemonConnection("Coordination test - daemon communication working!".to_string()));
+    return Err(ClientError::DaemonConnection("New coordination API working!".to_string()));
 }
 
 /// Establish a streaming P2P session via daemon

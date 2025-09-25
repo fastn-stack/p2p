@@ -30,6 +30,12 @@ enum Commands {
         peer: String,
         /// Protocol name
         protocol: String,
+        /// Protocol bind alias (defaults to "default")
+        #[arg(default_value = "default")]
+        bind_alias: String,
+        /// Identity to send from (auto-detected if only one identity)
+        #[arg(long)]
+        as_identity: Option<String>,
         /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
         #[arg(long, env = "FASTN_HOME")]
         home: Option<PathBuf>,
@@ -118,9 +124,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("📁 FASTN_HOME: {}", fastn_home.display());
             cli::daemon::run(fastn_home).await
         }
-        Commands::Call { peer, protocol, home } => {
+        Commands::Call { peer, protocol, bind_alias, as_identity, home } => {
             let fastn_home = cli::get_fastn_home(home)?;
-            cli::client::call(fastn_home, peer, protocol).await
+            cli::client::call(fastn_home, peer, protocol, bind_alias, as_identity).await
         }
         Commands::Stream { peer, protocol, home } => {
             let fastn_home = cli::get_fastn_home(home)?;

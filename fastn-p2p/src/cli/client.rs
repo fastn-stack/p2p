@@ -11,13 +11,17 @@ pub async fn call(
     _fastn_home: PathBuf,
     peer_id52: String,
     protocol: String,
+    bind_alias: String,
+    as_identity: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Parse target peer ID
-    let target: fastn_p2p_client::PublicKey = peer_id52.parse()
-        .map_err(|e| format!("Invalid peer ID '{}': {}", peer_id52, e))?;
-    
-    // Generate ephemeral client key (daemon manages actual identity keys)
-    let private_key = fastn_p2p_client::SecretKey::generate();
+    // Determine identity to send from
+    let from_identity = match as_identity {
+        Some(identity) => identity,
+        None => {
+            // TODO: Auto-detect identity if only one configured
+            "alice".to_string() // Hardcoded for testing
+        }
+    };
     
     // Read JSON request from stdin
     let mut stdin_input = String::new();
@@ -31,7 +35,7 @@ pub async fn call(
     // Parse JSON to validate it's valid
     let request_json: serde_json::Value = serde_json::from_str(stdin_input)?;
     
-    println!("📤 Sending {} request to {} via daemon", protocol, target.id52());
+    println!("📤 Sending {} {} request from {} to {}", protocol, bind_alias, from_identity, peer_id52);
     
     // For now, demonstrate with hardcoded protocol types to test coordination
     // TODO: Make this generic once daemon coordination is working
@@ -40,9 +44,8 @@ pub async fn call(
         let echo_request: crate::cli::daemon::test_protocols::EchoRequest = 
             serde_json::from_value(request_json)?;
         
-        let echo_protocol = crate::cli::daemon::test_protocols::EchoProtocol::Echo;
         let result: crate::cli::daemon::test_protocols::EchoResult = 
-            fastn_p2p_client::call(private_key, target, echo_protocol, echo_request).await?;
+            fastn_p2p_client::call(&from_identity, &peer_id52, &protocol, &bind_alias, echo_request).await?;
         
         // Print result as JSON
         println!("{}", serde_json::to_string_pretty(&result)?);
