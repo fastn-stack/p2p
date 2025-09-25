@@ -1,23 +1,19 @@
-//! Request/Response Pattern Example (Client-Only)
+//! Pure Echo Protocol Server
 //!
-//! Demonstrates the lightweight fastn-p2p-client making requests via daemon.
-//! Server logic is now implemented as a protocol in the fastn-p2p daemon.
+//! This shows how protocol developers write minimal, clean code.
+//! No CLI parsing, no setup - just protocol logic and lifecycle.
 //!
 //! Usage:
-//!   1. Start daemon: fastn-p2p daemon
-//!   2. Configure Echo protocol on an identity in the daemon  
-//!   3. Run client: cargo run --bin request_response <peer_id52> [message]
+//!   1. FASTN_HOME=/tmp/alice fastn-p2p daemon &
+//!   2. FASTN_HOME=/tmp/alice fastn-p2p create-identity alice
+//!   3. FASTN_HOME=/tmp/alice fastn-p2p add-protocol alice --protocol echo.fastn.com --config '{"max_length": 1000}'
+//!   4. FASTN_HOME=/tmp/alice fastn-p2p identity-online alice
+//!   5. FASTN_HOME=/tmp/alice cargo run --bin request_response
+//!   6. echo '{"message":"Hello"}' | FASTN_HOME=/tmp/alice fastn-p2p call <alice_peer_id> echo.fastn.com basic-echo
 
-use fastn_p2p_client;
-
-// Import protocol types from the daemon (for client usage)
 use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum EchoProtocol {
-    Echo,
-}
-
+// Echo Protocol Types
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EchoRequest {
     pub message: String,
@@ -34,54 +30,74 @@ pub enum EchoError {
     InvalidMessage(String),
 }
 
-type EchoResult = Result<EchoResponse, EchoError>;
-
-#[fastn_p2p_client::main]
+#[fastn_p2p::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = std::env::args().collect();
+    println!("🎧 Starting Echo protocol server");
+    println!("📡 Will serve all configured echo.fastn.com protocols from FASTN_HOME");
     
-    if args.len() < 2 {
-        eprintln!("Usage: {} <peer_id52> [message]", args[0]);
-        eprintln!("");
-        eprintln!("This client connects to a fastn-p2p daemon and sends Echo requests.");
-        eprintln!("Make sure the daemon is running with an Echo protocol configured:");
-        eprintln!("  1. fastn-p2p daemon");
-        eprintln!("  2. fastn-p2p create-identity alice");
-        eprintln!("  3. fastn-p2p add-protocol alice --protocol Echo --config '{{\"max_message_length\": 1000}}'");
-        return Ok(());
-    }
-    
-    let target_id52 = &args[1];
-    let message = args.get(2).unwrap_or(&"Hello P2P via daemon!".to_string()).clone();
-    
-    run_client(target_id52, message).await
+    fastn_p2p::serve_all()
+        .protocol("echo.fastn.com", |p| p
+            .on_create(echo_create_handler)
+            .on_activate(echo_activate_handler)
+            .on_check(echo_check_handler)
+            .handle_requests("basic-echo", fastn_p2p::echo_request_handler)
+            .on_reload(echo_reload_handler)
+            .on_deactivate(echo_deactivate_handler)
+        )
+        .serve()
+        .await
 }
 
-async fn run_client(
-    target_id52: &str,
-    message: String,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Parse target peer ID to PublicKey for type safety
-    let target_peer: fastn_p2p_client::PublicKey = target_id52.parse()
-        .map_err(|e| format!("Invalid peer ID '{}': {}", target_id52, e))?;
-        
-    println!("📤 Sending '{}' to {} via daemon", message, target_peer.id52());
+// Lifecycle handlers - clean signatures using BindingContext
+use std::pin::Pin;
+use std::future::Future;
 
-    let request = EchoRequest { message };
-    
-    // Use lightweight client that routes through daemon
-    let result: EchoResult = fastn_p2p_client::call(
-        "alice",              // From alice identity (daemon manages keys)
-        target_peer,          // To target peer (typed)
-        "Echo",               // Echo protocol
-        "default",            // Default Echo instance
-        request               // Request data
-    ).await?;
+fn echo_create_handler(
+    ctx: fastn_p2p::server::BindingContext,
+) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
+    Box::pin(async move {
+        println!("🔧 Echo create: {} {} ({})", ctx.identity.id52(), ctx.bind_alias, ctx.protocol_dir.display());
+        // TODO: Create default config files, setup protocol workspace
+        Ok(())
+    })
+}
 
-    match result {
-        Ok(response) => println!("✅ Response: {}", response.echoed),
-        Err(error) => println!("❌ Error: {:?}", error),
-    }
-    
-    Ok(())
+fn echo_activate_handler(
+    ctx: fastn_p2p::server::BindingContext,
+) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
+    Box::pin(async move {
+        println!("🚀 Echo activate: {} {} ({})", ctx.identity.id52(), ctx.bind_alias, ctx.protocol_dir.display());
+        // TODO: Read config, start P2P listeners, initialize runtime state
+        Ok(())
+    })
+}
+
+fn echo_check_handler(
+    ctx: fastn_p2p::server::BindingContext,
+) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
+    Box::pin(async move {
+        println!("🔍 Echo check: {} {} ({})", ctx.identity.id52(), ctx.bind_alias, ctx.protocol_dir.display());
+        // TODO: Validate config files, check runtime state
+        Ok(())
+    })
+}
+
+fn echo_reload_handler(
+    ctx: fastn_p2p::server::BindingContext,
+) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
+    Box::pin(async move {
+        println!("🔄 Echo reload: {} {} ({})", ctx.identity.id52(), ctx.bind_alias, ctx.protocol_dir.display());
+        // TODO: Re-read config, restart services with new settings
+        Ok(())
+    })
+}
+
+fn echo_deactivate_handler(
+    ctx: fastn_p2p::server::BindingContext,
+) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
+    Box::pin(async move {
+        println!("🛑 Echo deactivate: {} {} ({})", ctx.identity.id52(), ctx.bind_alias, ctx.protocol_dir.display());
+        // TODO: Stop accepting requests, but preserve data
+        Ok(())
+    })
 }

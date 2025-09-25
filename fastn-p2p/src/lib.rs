@@ -153,6 +153,9 @@ mod macros;
 // Export server module (client is now separate fastn-p2p-client crate)
 pub mod server;
 
+// Re-export modern server API for convenience
+pub use server::{serve_all, echo_request_handler};
+
 // Re-export essential types from fastn-net that users need
 pub use fastn_net::{Graceful, Protocol};
 // Note: PeerStreamSenders is intentionally NOT exported - users should use global singletons

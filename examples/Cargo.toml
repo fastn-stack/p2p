@@ -6,6 +6,7 @@ description = "P2P examples showcasing all major use cases"
 
 [dependencies]
 fastn-p2p-client = { path = "../fastn-p2p-client" }
+fastn-p2p = { path = "../fastn-p2p" }  # For server-side APIs
 tokio.workspace = true
 serde.workspace = true
 clap.workspace = true
