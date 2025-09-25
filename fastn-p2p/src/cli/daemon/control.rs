@@ -56,10 +56,8 @@ pub enum ClientRequest {
 /// JSON response format to clients
 #[derive(Debug, Serialize)]
 struct ClientResponse {
-    /// Request ID from original request
-    id: String,
-    /// Status: "ok" or "error"
-    status: String,
+    /// Success status: true for ok, false for error
+    success: bool,
     /// Response data or error message
     data: serde_json::Value,
 }
