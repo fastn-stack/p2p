@@ -1,15 +1,15 @@
 //! Shared utilities for P2P examples
 
 use std::path::Path;
-use fastn_p2p_client as fastn_p2p;
+use fastn_p2p_client;
 
 /// Parse a key from string or generate a new one
 pub fn key_from_str_or_generate(
     key_str: Option<&str>,
-) -> Result<fastn_p2p::SecretKey, Box<dyn std::error::Error>> {
+) -> Result<fastn_p2p_client::SecretKey, Box<dyn std::error::Error>> {
     match key_str {
         Some(s) => Ok(s.parse()?),
-        None => Ok(fastn_p2p::SecretKey::generate()),
+        None => Ok(fastn_p2p_client::SecretKey::generate()),
     }
 }
 

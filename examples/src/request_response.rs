@@ -8,7 +8,7 @@
 //!   2. Configure Echo protocol on an identity in the daemon  
 //!   3. Run client: cargo run --bin request_response <peer_id52> [message]
 
-use fastn_p2p_client as fastn_p2p;
+use fastn_p2p_client;
 
 // Import protocol types from the daemon (for client usage)
 use serde::{Serialize, Deserialize};
@@ -36,7 +36,7 @@ pub enum EchoError {
 
 type EchoResult = Result<EchoResponse, EchoError>;
 
-#[fastn_p2p::main]
+#[fastn_p2p_client::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     
@@ -61,19 +61,18 @@ async fn run_client(
     target_id52: &str,
     message: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Parse target peer ID
-    let target: fastn_p2p::PublicKey = target_id52.parse()
-        .map_err(|e| format!("Invalid peer ID '{}': {}", target_id52, e))?;
-    
-    // Generate ephemeral client key (daemon manages the actual identity keys)
-    let private_key = fastn_p2p::SecretKey::generate();
-
-    println!("📤 Sending '{}' to {} via daemon", message, target.id52());
+    println!("📤 Sending '{}' to {} via daemon", message, target_id52);
 
     let request = EchoRequest { message };
     
     // Use lightweight client that routes through daemon
-    let result: EchoResult = fastn_p2p::call(private_key, target, EchoProtocol::Echo, request).await?;
+    let result: EchoResult = fastn_p2p_client::call(
+        "alice",              // From alice identity (daemon manages keys)
+        target_id52,          // To target peer
+        "Echo",               // Echo protocol
+        "default",            // Default Echo instance
+        request               // Request data
+    ).await?;
 
     match result {
         Ok(response) => println!("✅ Response: {}", response.echoed),
