@@ -4,12 +4,13 @@ use std::path::Path;
 use fastn_p2p_client;
 
 /// Parse a key from string or generate a new one
+/// NOTE: This function is deprecated in daemon architecture - clients don't handle keys
 pub fn key_from_str_or_generate(
     key_str: Option<&str>,
-) -> Result<fastn_p2p_client::SecretKey, Box<dyn std::error::Error>> {
+) -> Result<String, Box<dyn std::error::Error>> {
     match key_str {
-        Some(s) => Ok(s.parse()?),
-        None => Ok(fastn_p2p_client::SecretKey::generate()),
+        Some(s) => Ok(s.to_string()),
+        None => Ok("auto-detected".to_string()), // Daemon will auto-detect identity
     }
 }
 
