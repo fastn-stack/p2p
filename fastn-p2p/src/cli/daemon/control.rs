@@ -90,7 +90,7 @@ pub async fn run(
             Ok((stream, _addr)) => {
                 let command_tx = command_tx.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = handle_client(stream, command_tx).await {
+                    if let Err(e) = handle_client(stream).await {
                         eprintln!("Error handling client: {}", e);
                     }
                 });
@@ -103,15 +103,119 @@ pub async fn run(
 }
 
 async fn handle_client(
-    _stream: tokio::net::UnixStream,
-    _command_tx: broadcast::Sender<DaemonCommand>,
+    stream: tokio::net::UnixStream,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    todo!("Parse JSON requests from Unix socket, route to P2P layer, stream responses back");
+    println!("📨 Client connected to control socket");
+    
+    let (reader, writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+    let mut line = String::new();
+
+    // Read the first line to get request header and determine routing
+    match buf_reader.read_line(&mut line).await {
+        Ok(0) => {
+            println!("📤 Client disconnected immediately");
+            return Ok(());
+        }
+        Ok(_) => {
+            let request_json = line.trim();
+            if request_json.is_empty() {
+                return Ok(());
+            }
+
+            println!("📥 Client request: {}", request_json);
+
+            // Parse request header to determine routing strategy
+            match route_client_request(request_json, buf_reader, writer).await {
+                Ok(_) => println!("✅ Request handled successfully"),
+                Err(e) => eprintln!("❌ Request failed: {}", e),
+            }
+        }
+        Err(e) => {
+            eprintln!("Error reading client request: {}", e);
+        }
+    }
+
+    Ok(())
 }
 
-async fn handle_request(
-    _request_json: &str,
-    _command_tx: &broadcast::Sender<DaemonCommand>,
-) -> Result<ClientResponse, Box<dyn std::error::Error + Send + Sync>> {
-    todo!("Parse JSON request, validate peer ID, route to P2P layer, wait for response");
+/// Route client request based on type: P2P (call/stream) or control (daemon management)
+async fn route_client_request(
+    request_json: &str,
+    unix_reader: BufReader<tokio::net::unix::OwnedReadHalf>,
+    unix_writer: tokio::net::unix::OwnedWriteHalf,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Parse the client request to determine routing
+    let request: ClientRequest = serde_json::from_str(request_json)?;
+    
+    match request {
+        ClientRequest::Call { from_identity, to_peer, protocol, bind_alias, request } => {
+            println!("🔀 Routing P2P call: {} {} from {} to {}", 
+                    protocol, bind_alias, from_identity, to_peer.id52());
+            
+            // P2P call routing using fastn_net connection pooling
+            handle_p2p_call(from_identity, to_peer, protocol, bind_alias, request, unix_writer).await
+        }
+        ClientRequest::Stream { from_identity, to_peer, protocol, bind_alias, initial_data } => {
+            println!("🔀 Routing P2P stream: {} {} from {} to {}", 
+                    protocol, bind_alias, from_identity, to_peer.id52());
+            
+            // P2P streaming routing with bidirectional piping
+            handle_p2p_stream(from_identity, to_peer, protocol, bind_alias, initial_data, unix_reader, unix_writer).await
+        }
+        // Control commands (non-P2P)
+        ClientRequest::ReloadIdentities => {
+            println!("🔀 Routing control: reload identities");
+            handle_control_command("reload-identities", serde_json::Value::Null, unix_writer).await
+        }
+        ClientRequest::SetIdentityState { identity, online } => {
+            println!("🔀 Routing control: set {} {}", identity, if online { "online" } else { "offline" });
+            let data = serde_json::json!({ "identity": identity, "online": online });
+            handle_control_command("set-identity-state", data, unix_writer).await
+        }
+        ClientRequest::AddProtocol { identity, protocol, bind_alias, config } => {
+            println!("🔀 Routing control: add protocol {} {} to {}", protocol, bind_alias, identity);
+            let data = serde_json::json!({ "identity": identity, "protocol": protocol, "bind_alias": bind_alias, "config": config });
+            handle_control_command("add-protocol", data, unix_writer).await
+        }
+        ClientRequest::RemoveProtocol { identity, protocol, bind_alias } => {
+            println!("🔀 Routing control: remove protocol {} {} from {}", protocol, bind_alias, identity);
+            let data = serde_json::json!({ "identity": identity, "protocol": protocol, "bind_alias": bind_alias });
+            handle_control_command("remove-protocol", data, unix_writer).await
+        }
+    }
+}
+
+/// Handle P2P call request - use fastn_net::get_stream() for connection pooling
+async fn handle_p2p_call(
+    _from_identity: String,
+    _to_peer: fastn_id52::PublicKey,
+    _protocol: String,
+    _bind_alias: String,
+    _request: serde_json::Value,
+    _unix_writer: tokio::net::unix::OwnedWriteHalf,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    todo!("Use fastn_net::get_stream() to get P2P connection, send request, pipe response back to Unix socket");
+}
+
+/// Handle P2P streaming request - bidirectional piping
+async fn handle_p2p_stream(
+    _from_identity: String,
+    _to_peer: fastn_id52::PublicKey,
+    _protocol: String,
+    _bind_alias: String,
+    _initial_data: serde_json::Value,
+    _unix_reader: BufReader<tokio::net::unix::OwnedReadHalf>,
+    _unix_writer: tokio::net::unix::OwnedWriteHalf,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    todo!("Use fastn_net::get_stream() for P2P connection, pipe Unix socket ↔ P2P stream bidirectionally");
+}
+
+/// Handle control commands (daemon management, non-P2P)
+async fn handle_control_command(
+    _command: &str,
+    _data: serde_json::Value,
+    _unix_writer: tokio::net::unix::OwnedWriteHalf,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    todo!("Handle daemon management commands: reload identities, add/remove protocols, set online/offline");
 }
