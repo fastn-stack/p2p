@@ -87,12 +87,15 @@ where
     let mut stream = tokio::net::UnixStream::connect(&socket_path).await
         .map_err(|e| ClientError::DaemonConnection(format!("Failed to connect to daemon: {}", e)))?;
     
-    // Create JSON request for daemon
+    // Parse to_peer as PublicKey for type safety
+    let to_peer_key: fastn_id52::PublicKey = to_peer.parse()
+        .map_err(|e| ClientError::DaemonConnection(format!("Invalid peer ID '{}': {}", to_peer, e)))?;
+
+    // Create typed JSON request for daemon (no ID needed - function calls don't need UUIDs)
     let daemon_request = serde_json::json!({
-        "id": uuid::Uuid::new_v4().to_string(),
         "type": "call",
         "from_identity": from_identity,
-        "to_peer": to_peer,
+        "to_peer": to_peer_key,
         "protocol": protocol,
         "bind_alias": bind_alias,
         "request": request
