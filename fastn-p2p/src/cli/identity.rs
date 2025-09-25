@@ -94,7 +94,7 @@ pub async fn remove_protocol(
     let identities_dir = fastn_home.join("identities");
     
     // Load existing identity config
-    let identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
+    let mut identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
         .map_err(|e| format!("Identity '{}' not found: {}", identity, e))?;
     
     // Find and remove the protocol binding
@@ -123,7 +123,7 @@ pub async fn set_identity_online(
     let identities_dir = fastn_home.join("identities");
     
     // Load identity config
-    let identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
+    let mut identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
         .map_err(|e| format!("Identity '{}' not found: {}", identity, e))?;
     
     if identity_config.online {
@@ -149,7 +149,7 @@ pub async fn set_identity_offline(
     let identities_dir = fastn_home.join("identities");
     
     // Load identity config
-    let identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
+    let mut identity_config = fastn_p2p::server::IdentityConfig::load_from_dir(&identities_dir, &identity).await
         .map_err(|e| format!("Identity '{}' not found: {}", identity, e))?;
     
     if !identity_config.online {
