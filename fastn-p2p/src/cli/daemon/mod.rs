@@ -241,17 +241,39 @@ async fn start_p2p_service(
 
 /// Start the control socket service
 async fn start_control_service(
-    _fastn_home: PathBuf,
-    _coordination: &CoordinationChannels,
+    fastn_home: PathBuf,
+    coordination: &CoordinationChannels,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Create Unix socket, bind listener, spawn control service task");
+    // Spawn control socket server task
+    let command_tx = coordination.command_tx.clone();
+    let response_rx = coordination.response_tx.subscribe();
+    
+    tokio::spawn(async move {
+        if let Err(e) = control::run(fastn_home, command_tx, response_rx).await {
+            eprintln!("❌ Control socket service error: {}", e);
+        }
+    });
+    
+    println!("✅ Control socket service task spawned");
+    Ok(())
 }
 
 /// Run the main coordination loop that handles service lifecycle
 async fn run_coordination_loop(
     _coordination: CoordinationChannels,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Coordinate between control socket and P2P services, handle shutdown signals");
+    println!("🔄 Starting main coordination loop");
+    println!("   - P2P service: Running in background");
+    println!("   - Control socket: Running in background");
+    println!("   - Coordination: Active via broadcast channels");
+    
+    // Keep the daemon running - both services are now spawned
+    // TODO: Handle shutdown signals, coordinate service lifecycle
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        // Services are running in background tasks
+        // Main loop keeps daemon alive and can handle coordination
+    }
 }
 
 async fn get_or_create_daemon_key(
