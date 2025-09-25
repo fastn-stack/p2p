@@ -11,32 +11,46 @@ use serde::{Deserialize, Serialize};
 
 use super::{DaemonCommand, DaemonResponse};
 
-/// JSON request format from clients
+/// Client request types - precise typing for each operation
 #[derive(Debug, Deserialize)]
-struct ClientRequest {
-    /// Request ID for tracking responses
-    id: String,
-    /// Request type: "call", "stream", "reload-identities", "set-identity-state", "add-protocol", "remove-protocol"
-    #[serde(rename = "type")]
-    request_type: String,
-    /// Target peer ID52 (for call/stream requests)
-    #[serde(default)]
-    target: Option<String>,
-    /// Protocol name (for call/stream/add-protocol/remove-protocol requests)
-    #[serde(default)]
-    protocol: Option<String>,
-    /// Identity name (for identity management requests)
-    #[serde(default)]
-    identity: Option<String>,
-    /// Bind alias (for add-protocol/remove-protocol requests)
-    #[serde(default)]
-    bind_alias: Option<String>,
-    /// Online state (for set-identity-state requests)
-    #[serde(default)]
-    online: Option<bool>,
-    /// Request data (varies by protocol and request type)
-    #[serde(default)]
-    data: Option<serde_json::Value>,
+#[serde(tag = "type")]
+pub enum ClientRequest {
+    #[serde(rename = "call")]
+    Call {
+        from_identity: String,
+        to_peer: String, // Will convert to PublicKey in next commit
+        protocol: String,
+        bind_alias: String,
+        request: serde_json::Value,
+    },
+    #[serde(rename = "stream")]
+    Stream {
+        from_identity: String,
+        to_peer: String, // Will convert to PublicKey in next commit
+        protocol: String,
+        bind_alias: String,
+        initial_data: serde_json::Value,
+    },
+    #[serde(rename = "reload-identities")]
+    ReloadIdentities,
+    #[serde(rename = "set-identity-state")]
+    SetIdentityState {
+        identity: String,
+        online: bool,
+    },
+    #[serde(rename = "add-protocol")]
+    AddProtocol {
+        identity: String,
+        protocol: String,
+        bind_alias: String,
+        config: serde_json::Value,
+    },
+    #[serde(rename = "remove-protocol")]
+    RemoveProtocol {
+        identity: String,
+        protocol: String,
+        bind_alias: String,
+    },
 }
 
 /// JSON response format to clients
