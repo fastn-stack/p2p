@@ -18,7 +18,7 @@ pub enum ClientRequest {
     #[serde(rename = "call")]
     Call {
         from_identity: String,
-        to_peer: String, // Will convert to PublicKey in next commit
+        to_peer: fastn_id52::PublicKey,
         protocol: String,
         bind_alias: String,
         request: serde_json::Value,
@@ -26,7 +26,7 @@ pub enum ClientRequest {
     #[serde(rename = "stream")]
     Stream {
         from_identity: String,
-        to_peer: String, // Will convert to PublicKey in next commit
+        to_peer: fastn_id52::PublicKey,
         protocol: String,
         bind_alias: String,
         initial_data: serde_json::Value,
