@@ -4,8 +4,31 @@
 //! routes all communication through the fastn-p2p daemon via Unix socket.
 
 use std::path::PathBuf;
+use serde::Serialize;
 
 use crate::error::{ClientError, ConnectionError};
+
+/// Client request to daemon - shared protocol structure
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
+pub enum DaemonRequest<T> {
+    #[serde(rename = "call")]
+    Call {
+        from_identity: String,
+        to_peer: fastn_id52::PublicKey,
+        protocol: String,
+        bind_alias: String,
+        request: T,
+    },
+    #[serde(rename = "stream")]
+    Stream {
+        from_identity: String,
+        to_peer: fastn_id52::PublicKey,
+        protocol: String,
+        bind_alias: String,
+        initial_data: T,
+    },
+}
 
 /// Make a type-safe request/response call to a remote peer via daemon
 ///
@@ -87,15 +110,14 @@ where
     let mut stream = tokio::net::UnixStream::connect(&socket_path).await
         .map_err(|e| ClientError::DaemonConnection(format!("Failed to connect to daemon: {}", e)))?;
 
-    // Create typed JSON request for daemon (no ID needed - function calls don't need UUIDs)
-    let daemon_request = serde_json::json!({
-        "type": "call",
-        "from_identity": from_identity,
-        "to_peer": to_peer,
-        "protocol": protocol,
-        "bind_alias": bind_alias,
-        "request": request
-    });
+    // Create typed request using shared protocol structure
+    let daemon_request = DaemonRequest::Call {
+        from_identity: from_identity.to_string(),
+        to_peer,
+        protocol: protocol.to_string(),
+        bind_alias: bind_alias.to_string(),
+        request,
+    };
     
     // Send request to daemon
     use tokio::io::{AsyncWriteExt, AsyncReadExt};
