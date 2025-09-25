@@ -8,12 +8,18 @@ use std::io::{self, Read};
 
 /// Make a request/response call to a peer via the daemon
 pub async fn call(
-    _fastn_home: PathBuf,
+    fastn_home: PathBuf,
     peer_id52: String,
     protocol: String,
     bind_alias: String,
     as_identity: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Check if daemon is running
+    let socket_path = fastn_home.join("control.sock");
+    if !socket_path.exists() {
+        return Err(format!("Daemon not running. Socket not found: {}. Start with: fastn-p2p daemon", socket_path.display()).into());
+    }
+    
     // Determine identity to send from
     let from_identity = match as_identity {
         Some(identity) => identity,
@@ -22,6 +28,10 @@ pub async fn call(
             "alice".to_string() // Hardcoded for testing
         }
     };
+    
+    // Parse peer ID to PublicKey for type safety
+    let to_peer: fastn_id52::PublicKey = peer_id52.parse()
+        .map_err(|e| format!("Invalid peer ID '{}': {}", peer_id52, e))?;
     
     // Read JSON request from stdin
     let mut stdin_input = String::new();
@@ -35,26 +45,45 @@ pub async fn call(
     // Parse JSON to validate it's valid
     let request_json: serde_json::Value = serde_json::from_str(stdin_input)?;
     
-    println!("📤 Sending {} {} request from {} to {}", protocol, bind_alias, from_identity, peer_id52);
+    println!("📤 Sending {} {} request from {} to {}", protocol, bind_alias, from_identity, to_peer.id52());
     
-    // For now, demonstrate with hardcoded protocol types to test coordination
-    // TODO: Make this generic once daemon coordination is working
-    if protocol == "Echo" {
-        // Create EchoRequest from JSON input
-        let echo_request: crate::cli::daemon::test_protocols::EchoRequest = 
-            serde_json::from_value(request_json)?;
-        
-        // Parse peer ID to PublicKey
-        let to_peer: fastn_p2p_client::PublicKey = peer_id52.parse()
-            .map_err(|e| format!("Invalid peer ID '{}': {}", peer_id52, e))?;
-            
-        let result: crate::cli::daemon::test_protocols::EchoResult = 
-            fastn_p2p_client::call(&from_identity, to_peer, &protocol, &bind_alias, echo_request).await?;
-        
-        // Print result as JSON
-        println!("{}", serde_json::to_string_pretty(&result)?);
-    } else {
-        return Err(format!("Protocol '{}' not supported in CLI yet", protocol).into());
+    // Connect to daemon control socket directly
+    use tokio::net::UnixStream;
+    use tokio::io::{AsyncWriteExt, AsyncReadExt, AsyncBufReadExt, BufReader};
+    
+    let mut stream = UnixStream::connect(&socket_path).await
+        .map_err(|e| format!("Failed to connect to daemon: {}", e))?;
+    
+    // Create typed request for daemon
+    let daemon_request = serde_json::json!({
+        "type": "call",
+        "from_identity": from_identity,
+        "to_peer": to_peer,
+        "protocol": protocol,
+        "bind_alias": bind_alias,
+        "request": request_json
+    });
+    
+    // Send request to daemon
+    let request_data = serde_json::to_string(&daemon_request)?;
+    stream.write_all(request_data.as_bytes()).await?;
+    stream.write_all(b"\n").await?;
+    
+    println!("📡 Request sent to daemon, reading response...");
+    
+    // Read response from daemon
+    let (reader, _writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+    let mut response_line = String::new();
+    
+    match buf_reader.read_line(&mut response_line).await {
+        Ok(0) => return Err("Daemon closed connection without response".into()),
+        Ok(_) => {
+            let response: serde_json::Value = serde_json::from_str(response_line.trim())?;
+            println!("📥 Response from daemon:");
+            println!("{}", serde_json::to_string_pretty(&response)?);
+        }
+        Err(e) => return Err(format!("Failed to read daemon response: {}", e).into()),
     }
     
     Ok(())
