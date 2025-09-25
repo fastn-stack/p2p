@@ -20,40 +20,8 @@ symphonia = { version = "0.5", features = ["mp3"] } # Alternative audio decoder
 bincode = "1.3" # For efficient serialization
 termion = "2.0" # For raw terminal input
 
-# Example binaries - each showcases a major P2P use case
+# Example binaries - focus on request_response for daemon coordination testing
 [[bin]]
 name = "request_response" 
 path = "src/request_response.rs"
-
-[[bin]]
-name = "file_transfer"
-path = "src/file_transfer.rs"
-
-[[bin]]
-name = "shell_simple"
-path = "src/shell_simple.rs"
-
-[[bin]]
-name = "shell_advanced"
-path = "src/shell_advanced.rs"
-
-[[bin]]
-name = "tcp_proxy"
-path = "src/tcp_proxy.rs"
-
-[[bin]]
-name = "http_proxy_simple"
-path = "src/http_proxy_simple.rs"
-
-[[bin]]
-name = "media_stream"
-path = "src/media_stream.rs"
-
-[[bin]]
-name = "multi_protocol"
-path = "src/multi_protocol.rs"
-
-[[bin]]
-name = "audio_test"
-path = "src/audio_test.rs"
 
