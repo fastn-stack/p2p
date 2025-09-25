@@ -28,13 +28,21 @@ pub type StreamCallback = fn(
     serde_json::Value,      // initial_data
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
-/// Lifecycle callback types for protocol management (per binding)
-pub type CreateCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
-pub type ActivateCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
-pub type DeactivateCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
-pub type CheckCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
-pub type ReloadCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
-pub type DeleteCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+/// Protocol binding context passed to all handlers
+#[derive(Debug, Clone)]
+pub struct BindingContext {
+    pub identity: fastn_id52::PublicKey,
+    pub bind_alias: String,
+    pub protocol_dir: PathBuf,
+}
+
+/// Lifecycle callback types for protocol management (per binding) - clean async fn signatures  
+pub type CreateCallback = fn(BindingContext) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type ActivateCallback = fn(BindingContext) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type DeactivateCallback = fn(BindingContext) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type CheckCallback = fn(BindingContext) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type ReloadCallback = fn(BindingContext) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type DeleteCallback = fn(BindingContext) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
 /// Global lifecycle callback types (across all protocol bindings)
 pub type GlobalLoadCallback = fn(&str) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
