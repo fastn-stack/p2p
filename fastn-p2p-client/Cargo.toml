@@ -13,6 +13,7 @@ serde_json.workspace = true
 tokio = { workspace = true, features = ["net", "io-util"] }
 directories.workspace = true
 thiserror.workspace = true
+uuid = { version = "1.0", features = ["v4"] }
 
 # Re-export key types (but not the heavy crypto implementation)
 fastn-id52 = { path = "../fastn-id52", version = "0.1.1" }

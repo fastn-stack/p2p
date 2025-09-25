@@ -58,9 +58,9 @@ use crate::error::{ClientError, ConnectionError};
 /// ```
 pub async fn call<PROTOCOL, REQUEST, RESPONSE, ERROR>(
     _our_key: fastn_id52::SecretKey,
-    _target: fastn_id52::PublicKey,
-    _protocol: PROTOCOL,
-    _request: REQUEST,
+    target: fastn_id52::PublicKey,
+    protocol: PROTOCOL,
+    request: REQUEST,
 ) -> Result<Result<RESPONSE, ERROR>, ClientError>
 where
     PROTOCOL: serde::Serialize + for<'de> serde::Deserialize<'de> + Clone + PartialEq + std::fmt::Debug + Send + Sync + 'static,
@@ -68,7 +68,56 @@ where
     RESPONSE: serde::Serialize + for<'de> serde::Deserialize<'de>,
     ERROR: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
-    todo!("Connect to fastn-p2p daemon via Unix socket, send JSON call request, receive JSON response");
+    let fastn_home = get_fastn_home()?;
+    let socket_path = fastn_home.join("control.sock");
+    
+    if !socket_path.exists() {
+        return Err(ClientError::DaemonConnection(
+            format!("Daemon not running. Socket not found: {}", socket_path.display())
+        ));
+    }
+    
+    println!("🔌 Connecting to daemon at: {}", socket_path.display());
+    println!("📤 Sending {} request to {}", 
+             std::any::type_name::<PROTOCOL>(), 
+             target.id52());
+    
+    // Connect to Unix socket  
+    let mut stream = tokio::net::UnixStream::connect(&socket_path).await
+        .map_err(|e| ClientError::DaemonConnection(format!("Failed to connect to daemon: {}", e)))?;
+    
+    // Create JSON request for daemon
+    let daemon_request = serde_json::json!({
+        "id": uuid::Uuid::new_v4().to_string(),
+        "type": "call",
+        "target": target.id52(),
+        "protocol": format!("{:?}", protocol),
+        "data": request
+    });
+    
+    // Send request to daemon
+    use tokio::io::{AsyncWriteExt, AsyncReadExt};
+    let request_json = serde_json::to_string(&daemon_request)?;
+    stream.write_all(request_json.as_bytes()).await
+        .map_err(|e| ClientError::Io { source: e })?;
+    stream.write_all(b"\n").await
+        .map_err(|e| ClientError::Io { source: e })?;
+    
+    println!("📡 Request sent to daemon, waiting for response...");
+    
+    // Read response from daemon
+    let mut response_buffer = Vec::new();
+    stream.read_to_end(&mut response_buffer).await
+        .map_err(|e| ClientError::Io { source: e })?;
+    
+    let response_str = String::from_utf8(response_buffer)
+        .map_err(|e| ClientError::DaemonConnection(format!("Invalid response from daemon: {}", e)))?;
+    
+    println!("📥 Received response from daemon: {}", response_str);
+    
+    // For now, return hardcoded success to test coordination
+    // TODO: Parse actual daemon response and deserialize RESPONSE/ERROR
+    return Err(ClientError::DaemonConnection("Coordination test - daemon communication working!".to_string()));
 }
 
 /// Establish a streaming P2P session via daemon
