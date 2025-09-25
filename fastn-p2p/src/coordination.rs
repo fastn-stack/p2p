@@ -3,7 +3,36 @@
 //! This module encapsulates ALL graceful access and fastn_net::get_stream usage
 //! to ensure complete singleton access control.
 
-use crate::client::CallError;
+/// Coordination operation errors (internal to coordination module)
+#[derive(Debug, thiserror::Error)]
+pub enum CoordinationError {
+    #[error("Connection failed: {source}")]
+    Connection { source: eyre::Error },
+
+    #[error("Request/response error: {source}")]
+    RequestResponse { source: eyre::Error },
+
+    #[error("Serialization error: {source}")]
+    Serialization { source: serde_json::Error },
+
+    #[error("Endpoint error: {source}")]
+    Endpoint { source: eyre::Error },
+
+    #[error("Stream error: {source}")]
+    Stream { source: eyre::Error },
+
+    #[error("Send error: {source}")]
+    Send { source: eyre::Error },
+
+    #[error("Receive error: {source}")]
+    Receive { source: eyre::Error },
+
+    #[error("Deserialization error: {source}")]
+    Deserialization { source: serde_json::Error },
+}
+
+/// Type alias for coordination call results
+type CallError = CoordinationError;
 
 /// Global graceful shutdown coordinator (accessible within crate)
 pub(crate) static GRACEFUL: std::sync::LazyLock<fastn_net::Graceful> =

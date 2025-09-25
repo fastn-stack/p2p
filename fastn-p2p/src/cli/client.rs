@@ -1,37 +1,26 @@
-//! Client functionality for fastn-p2p
+//! Client functionality for fastn-p2p CLI
+//!
+//! This module handles CLI client commands using the lightweight fastn-p2p-client crate.
+//! It reads from stdin, communicates with the daemon, and outputs results.
 
 use std::path::PathBuf;
 
 /// Make a request/response call to a peer via the daemon
 pub async fn call(
-    fastn_home: PathBuf,
-    peer: String,
-    protocol: String,
+    _fastn_home: PathBuf,
+    _peer: String,
+    _protocol: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let socket_path = fastn_home.join("control.sock");
-    
-    if !socket_path.exists() {
-        eprintln!("❌ Daemon not running. Socket not found: {}", socket_path.display());
-        eprintln!("   Start daemon with: fastn-p2p daemon");
-        return Err("Daemon not available".into());
-    }
-
-    todo!("Connect to daemon via Unix socket, send JSON request with stdin data, print response to stdout")
+    // TODO: Parse peer ID, read JSON from stdin, use fastn_p2p_client::call()
+    todo!("Read JSON from stdin, use fastn-p2p-client::call() to send via daemon, print response to stdout");
 }
 
-/// Open a bidirectional stream to a peer via the daemon
+/// Open a bidirectional stream to a peer via the daemon  
 pub async fn stream(
-    fastn_home: PathBuf,
-    peer: String,
-    protocol: String,
+    _fastn_home: PathBuf,
+    _peer: String,
+    _protocol: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let socket_path = fastn_home.join("control.sock");
-    
-    if !socket_path.exists() {
-        eprintln!("❌ Daemon not running. Socket not found: {}", socket_path.display());
-        eprintln!("   Start daemon with: fastn-p2p daemon");
-        return Err("Daemon not available".into());
-    }
-
-    todo!("Connect to daemon via Unix socket, send JSON stream request, pipe stdin/stdout bidirectionally")
+    // TODO: Parse peer ID, use fastn_p2p_client::connect(), pipe stdin/stdout
+    todo!("Use fastn-p2p-client::connect() to establish stream via daemon, pipe stdin/stdout bidirectionally");
 }

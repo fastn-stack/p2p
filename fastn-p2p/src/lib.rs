@@ -150,8 +150,7 @@ mod globals;
 mod handshake;
 mod macros;
 
-// Export client and server modules (new modular API)
-pub mod client;
+// Export server module (client is now separate fastn-p2p-client crate)
 pub mod server;
 
 // Re-export essential types from fastn-net that users need

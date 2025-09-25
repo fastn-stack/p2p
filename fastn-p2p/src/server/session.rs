@@ -32,7 +32,7 @@ impl<PROTOCOL> Session<PROTOCOL> {
     /// Open unidirectional stream back to client (e.g., stderr)
     pub async fn open_uni(
         &mut self,
-    ) -> Result<iroh::endpoint::SendStream, crate::client::ConnectionError> {
+    ) -> Result<iroh::endpoint::SendStream, fastn_p2p_client::ConnectionError> {
         // TODO: Open unidirectional stream to client
         todo!("Open unidirectional stream back to client")
     }
@@ -42,7 +42,7 @@ impl<PROTOCOL> Session<PROTOCOL> {
         &mut self,
     ) -> Result<
         (iroh::endpoint::SendStream, iroh::endpoint::RecvStream),
-        crate::client::ConnectionError,
+        fastn_p2p_client::ConnectionError,
     > {
         // TODO: Open bidirectional stream to client
         todo!("Open bidirectional stream back to client")

@@ -19,6 +19,7 @@ fs2 = "0.4"
 async-trait.workspace = true
 fastn-net = { path = "../fastn-net", version = "0.1.2" }
 fastn-id52 = { path = "../fastn-id52", version = "0.1.1" }
+fastn-p2p-client = { path = "../fastn-p2p-client", version = "0.1.0" }
 async-stream.workspace = true
 eyre.workspace = true
 futures-core.workspace = true
