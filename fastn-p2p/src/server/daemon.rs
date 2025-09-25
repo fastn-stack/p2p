@@ -58,30 +58,31 @@ impl IdentityConfig {
         self
     }
     
-    /// Save this identity config to the identities directory
+    /// Save this identity config to conventional directory structure
     pub async fn save_to_dir(&self, identities_dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-        // Only save secret key if it doesn't exist yet
-        let key_path = identities_dir.join(format!("{}.private-key", self.alias));
+        let identity_dir = identities_dir.join(&self.alias);
+        tokio::fs::create_dir_all(&identity_dir).await?;
+        
+        // Save secret key inside identity directory if it doesn't exist yet
+        let key_path = identity_dir.join("identity.private-key");
         if !key_path.exists() {
-            self.secret_key.save_to_dir(identities_dir, &self.alias)?;
+            self.secret_key.save_to_dir(&identity_dir, "identity")?;
         }
         
-        // Always save the configuration (without secret key)
-        let config_path = identities_dir.join(format!("{}.config.json", self.alias));
-        let serializable = IdentityConfigSerialized {
-            alias: self.alias.clone(),
-            protocols: self.protocols.clone(),
-            online: self.online,
-        };
-        let config_json = serde_json::to_string_pretty(&serializable)?;
-        tokio::fs::write(&config_path, config_json).await?;
+        // Save online/offline state as marker file
+        let online_marker = identity_dir.join("online");
+        if self.online {
+            tokio::fs::write(&online_marker, "").await?;
+        } else if online_marker.exists() {
+            tokio::fs::remove_file(&online_marker).await?;
+        }
         
         Ok(())
     }
     
     /// Load identity config from conventional directory structure
     pub async fn load_from_conventional_dir(identity_dir: &PathBuf, alias: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        // Load the secret key
+        // Load the secret key from inside identity directory
         let (_id52, secret_key) = fastn_id52::SecretKey::load_from_dir(identity_dir, "identity")?;
         
         // Check if identity is online (online file exists)
