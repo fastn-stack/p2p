@@ -3,6 +3,8 @@ members = [
     "fastn-id52",
     "fastn-net",
     "fastn-p2p",
+    "fastn-p2p-client",
+    "examples",
 ]
 exclude = []
 resolver = "2"

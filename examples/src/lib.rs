@@ -1,6 +1,7 @@
 //! Shared utilities for P2P examples
 
 use std::path::Path;
+use fastn_p2p_client as fastn_p2p;
 
 /// Parse a key from string or generate a new one
 pub fn key_from_str_or_generate(
