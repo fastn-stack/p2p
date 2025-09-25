@@ -44,8 +44,12 @@ pub async fn call(
         let echo_request: crate::cli::daemon::test_protocols::EchoRequest = 
             serde_json::from_value(request_json)?;
         
+        // Parse peer ID to PublicKey
+        let to_peer: fastn_p2p_client::PublicKey = peer_id52.parse()
+            .map_err(|e| format!("Invalid peer ID '{}': {}", peer_id52, e))?;
+            
         let result: crate::cli::daemon::test_protocols::EchoResult = 
-            fastn_p2p_client::call(&from_identity, &peer_id52, &protocol, &bind_alias, echo_request).await?;
+            fastn_p2p_client::call(&from_identity, to_peer, &protocol, &bind_alias, echo_request).await?;
         
         // Print result as JSON
         println!("{}", serde_json::to_string_pretty(&result)?);

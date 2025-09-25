@@ -61,7 +61,7 @@ use crate::error::{ClientError, ConnectionError};
 /// ```
 pub async fn call<REQUEST, RESPONSE, ERROR>(
     from_identity: &str,
-    to_peer: &str,
+    to_peer: fastn_id52::PublicKey,
     protocol: &str,
     bind_alias: &str,
     request: REQUEST,
@@ -81,21 +81,17 @@ where
     }
     
     println!("🔌 Connecting to daemon as identity '{}'", from_identity);
-    println!("📤 Sending {} {} request to {}", protocol, bind_alias, to_peer);
+    println!("📤 Sending {} {} request to {}", protocol, bind_alias, to_peer.id52());
     
     // Connect to Unix socket  
     let mut stream = tokio::net::UnixStream::connect(&socket_path).await
         .map_err(|e| ClientError::DaemonConnection(format!("Failed to connect to daemon: {}", e)))?;
-    
-    // Parse to_peer as PublicKey for type safety
-    let to_peer_key: fastn_id52::PublicKey = to_peer.parse()
-        .map_err(|e| ClientError::DaemonConnection(format!("Invalid peer ID '{}': {}", to_peer, e)))?;
 
     // Create typed JSON request for daemon (no ID needed - function calls don't need UUIDs)
     let daemon_request = serde_json::json!({
         "type": "call",
         "from_identity": from_identity,
-        "to_peer": to_peer_key,
+        "to_peer": to_peer,
         "protocol": protocol,
         "bind_alias": bind_alias,
         "request": request

@@ -61,14 +61,18 @@ async fn run_client(
     target_id52: &str,
     message: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("📤 Sending '{}' to {} via daemon", message, target_id52);
+    // Parse target peer ID to PublicKey for type safety
+    let target_peer: fastn_p2p_client::PublicKey = target_id52.parse()
+        .map_err(|e| format!("Invalid peer ID '{}': {}", target_id52, e))?;
+        
+    println!("📤 Sending '{}' to {} via daemon", message, target_peer.id52());
 
     let request = EchoRequest { message };
     
     // Use lightweight client that routes through daemon
     let result: EchoResult = fastn_p2p_client::call(
         "alice",              // From alice identity (daemon manages keys)
-        target_id52,          // To target peer
+        target_peer,          // To target peer (typed)
         "Echo",               // Echo protocol
         "default",            // Default Echo instance
         request               // Request data
