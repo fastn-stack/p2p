@@ -55,10 +55,15 @@ async fn run_server(_identity: String) -> Result<(), Box<dyn std::error::Error>>
     println!("🎧 Starting multi-identity Echo protocol server");
     println!("📡 Will discover and serve all configured identities and protocols from FASTN_HOME");
     
-    // Use modern serve_all() builder with nested protocol API
+    // Use modern serve_all() builder with complete lifecycle
     fastn_p2p::serve_all()
         .protocol("echo.fastn.com", |p| p
+            .on_init(echo_init_handler)
+            .on_load(echo_load_handler)
+            .on_check(echo_check_handler)
             .handle_requests("basic-echo", fastn_p2p::echo_request_handler)
+            .on_reload(echo_reload_handler)
+            .on_stop(echo_stop_handler)
         )
         .serve()
         .await?;
@@ -86,7 +91,91 @@ async fn load_identity_key(identity: &str) -> Result<fastn_p2p::SecretKey, Box<d
     }
 }
 
-/// Echo request handler (server-side logic)
+// Echo protocol lifecycle handlers
+use std::pin::Pin;
+use std::future::Future;
+
+fn echo_init_handler(
+    identity: &str,
+    bind_alias: &str, 
+    protocol_dir: &std::path::PathBuf,
+) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
+    let identity = identity.to_string();
+    let bind_alias = bind_alias.to_string();
+    let protocol_dir = protocol_dir.clone();
+    
+    Box::pin(async move {
+        println!("🔧 Echo init: {} {} ({})", identity, bind_alias, protocol_dir.display());
+        // TODO: Create default config files, setup protocol workspace
+        Ok(())
+    })
+}
+
+fn echo_load_handler(
+    identity: &str,
+    bind_alias: &str,
+    protocol_dir: &std::path::PathBuf,
+) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
+    let identity = identity.to_string();
+    let bind_alias = bind_alias.to_string();
+    let protocol_dir = protocol_dir.clone();
+    
+    Box::pin(async move {
+        println!("🚀 Echo load: {} {} ({})", identity, bind_alias, protocol_dir.display());
+        // TODO: Read config, start P2P listeners, initialize runtime state
+        Ok(())
+    })
+}
+
+fn echo_check_handler(
+    identity: &str,
+    bind_alias: &str,
+    protocol_dir: &std::path::PathBuf,
+) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
+    let identity = identity.to_string();
+    let bind_alias = bind_alias.to_string();
+    let protocol_dir = protocol_dir.clone();
+    
+    Box::pin(async move {
+        println!("🔍 Echo check: {} {} ({})", identity, bind_alias, protocol_dir.display());
+        // TODO: Validate config files, check runtime state
+        Ok(())
+    })
+}
+
+fn echo_reload_handler(
+    identity: &str,
+    bind_alias: &str,
+    protocol_dir: &std::path::PathBuf,
+) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
+    let identity = identity.to_string();
+    let bind_alias = bind_alias.to_string();
+    let protocol_dir = protocol_dir.clone();
+    
+    Box::pin(async move {
+        println!("🔄 Echo reload: {} {} ({})", identity, bind_alias, protocol_dir.display());
+        // TODO: Re-read config, restart services with new settings
+        Ok(())
+    })
+}
+
+fn echo_stop_handler(
+    identity: &str,
+    bind_alias: &str,
+    protocol_dir: &std::path::PathBuf,
+) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>> {
+    let identity = identity.to_string();
+    let bind_alias = bind_alias.to_string();
+    let protocol_dir = protocol_dir.clone();
+    
+    Box::pin(async move {
+        println!("🛑 Echo stop: {} {} ({})", identity, bind_alias, protocol_dir.display());
+        // TODO: Clean shutdown of P2P listeners, save state
+        Ok(())
+    })
+}
+
+/// Echo request handler (server-side logic) 
 pub async fn echo_handler(req: EchoRequest) -> Result<EchoResponse, EchoError> {
     println!("💬 Server received: {}", req.message);
     

@@ -28,23 +28,116 @@ pub type StreamCallback = fn(
     serde_json::Value,      // initial_data
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
+/// Lifecycle callback types for protocol management (per binding)
+pub type InitCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type LoadCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type CheckCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type ReloadCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type StopCallback = fn(&str, &str, &PathBuf) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+
+/// Global lifecycle callback types (across all protocol bindings)
+pub type GlobalLoadCallback = fn(&str) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+pub type GlobalUnloadCallback = fn(&str) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
+
 /// Protocol command handlers for a specific protocol
 pub struct ProtocolBuilder {
     protocol_name: String,
     request_callbacks: HashMap<String, RequestCallback>,  // Key: command name
     stream_callbacks: HashMap<String, StreamCallback>,    // Key: command name
+    
+    // Per-binding lifecycle callbacks
+    init_callback: Option<InitCallback>,
+    load_callback: Option<LoadCallback>,
+    check_callback: Option<CheckCallback>,
+    reload_callback: Option<ReloadCallback>,
+    stop_callback: Option<StopCallback>,
+    
+    // Global protocol lifecycle callbacks  
+    global_load_callback: Option<GlobalLoadCallback>,
+    global_unload_callback: Option<GlobalUnloadCallback>,
 }
 
 impl ProtocolBuilder {
-    /// Add a request/response command handler
+    /// Add a request/response command handler (panics on duplicate)
     pub fn handle_requests(mut self, command: &str, callback: RequestCallback) -> Self {
+        if self.request_callbacks.contains_key(command) {
+            panic!("Duplicate request handler for protocol '{}' command '{}' - each command can only be registered once", 
+                   self.protocol_name, command);
+        }
         self.request_callbacks.insert(command.to_string(), callback);
         self
     }
     
-    /// Add a streaming command handler
+    /// Add a streaming command handler (panics on duplicate)
     pub fn handle_streams(mut self, command: &str, callback: StreamCallback) -> Self {
+        if self.stream_callbacks.contains_key(command) {
+            panic!("Duplicate stream handler for protocol '{}' command '{}' - each command can only be registered once", 
+                   self.protocol_name, command);
+        }
         self.stream_callbacks.insert(command.to_string(), callback);
+        self
+    }
+    
+    /// Protocol initialization (first-time setup, per binding)
+    pub fn on_init(mut self, callback: InitCallback) -> Self {
+        if self.init_callback.is_some() {
+            panic!("Duplicate on_init for protocol '{}' - can only register once", self.protocol_name);
+        }
+        self.init_callback = Some(callback);
+        self
+    }
+    
+    /// Protocol loading (start services, per binding)
+    pub fn on_load(mut self, callback: LoadCallback) -> Self {
+        if self.load_callback.is_some() {
+            panic!("Duplicate on_load for protocol '{}' - can only register once", self.protocol_name);
+        }
+        self.load_callback = Some(callback);
+        self
+    }
+    
+    /// Protocol configuration check (per binding)
+    pub fn on_check(mut self, callback: CheckCallback) -> Self {
+        if self.check_callback.is_some() {
+            panic!("Duplicate on_check for protocol '{}' - can only register once", self.protocol_name);
+        }
+        self.check_callback = Some(callback);
+        self
+    }
+    
+    /// Protocol reload (restart with new config, per binding)
+    pub fn on_reload(mut self, callback: ReloadCallback) -> Self {
+        if self.reload_callback.is_some() {
+            panic!("Duplicate on_reload for protocol '{}' - can only register once", self.protocol_name);
+        }
+        self.reload_callback = Some(callback);
+        self
+    }
+    
+    /// Protocol stop (clean shutdown, per binding)
+    pub fn on_stop(mut self, callback: StopCallback) -> Self {
+        if self.stop_callback.is_some() {
+            panic!("Duplicate on_stop for protocol '{}' - can only register once", self.protocol_name);
+        }
+        self.stop_callback = Some(callback);
+        self
+    }
+    
+    /// Global protocol load (once per protocol, across all bindings)
+    pub fn on_global_load(mut self, callback: GlobalLoadCallback) -> Self {
+        if self.global_load_callback.is_some() {
+            panic!("Duplicate on_global_load for protocol '{}' - can only register once", self.protocol_name);
+        }
+        self.global_load_callback = Some(callback);
+        self
+    }
+    
+    /// Global protocol unload (once per protocol, across all bindings)  
+    pub fn on_global_unload(mut self, callback: GlobalUnloadCallback) -> Self {
+        if self.global_unload_callback.is_some() {
+            panic!("Duplicate on_global_unload for protocol '{}' - can only register once", self.protocol_name);
+        }
+        self.global_unload_callback = Some(callback);
         self
     }
 }
@@ -70,14 +163,26 @@ impl ServeAllBuilder {
     ///         .handle_streams("transfer.large-file", large_file_handler)
     ///     )
     /// ```
+    /// Register a protocol with its commands and lifecycle (panics on duplicate)
     pub fn protocol<F>(mut self, protocol_name: &str, builder_fn: F) -> Self 
     where
         F: FnOnce(ProtocolBuilder) -> ProtocolBuilder,
     {
+        if self.protocols.contains_key(protocol_name) {
+            panic!("Duplicate protocol registration for '{}' - each protocol can only be registered once", protocol_name);
+        }
+        
         let protocol_builder = ProtocolBuilder {
             protocol_name: protocol_name.to_string(),
             request_callbacks: HashMap::new(),
             stream_callbacks: HashMap::new(),
+            init_callback: None,
+            load_callback: None,
+            check_callback: None,
+            reload_callback: None,
+            stop_callback: None,
+            global_load_callback: None,
+            global_unload_callback: None,
         };
         
         let configured_protocol = builder_fn(protocol_builder);
