@@ -9,6 +9,7 @@ pub mod management;
 pub mod request;
 pub mod session;
 pub mod daemon;
+pub mod serve_all;
 
 // Public API exports - no use statements, direct qualification
 pub use builder::{ServerBuilder, listen as builder_listen};
@@ -26,3 +27,6 @@ pub use daemon::{
     IdentityConfig, ProtocolBinding, ServerConfig, 
     ensure_fastn_home, load_all_identities, run_generic_server, acquire_singleton_lock
 };
+
+// Modern multi-identity server with callbacks
+pub use serve_all::{serve_all, echo_request_handler};

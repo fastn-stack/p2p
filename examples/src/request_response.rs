@@ -51,17 +51,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     run_server(identity).await
 }
 
-async fn run_server(identity: String) -> Result<(), Box<dyn std::error::Error>> {
-    println!("🎧 Starting Echo protocol server for identity: {}", identity);
+async fn run_server(_identity: String) -> Result<(), Box<dyn std::error::Error>> {
+    println!("🎧 Starting multi-identity Echo protocol server");
+    println!("📡 Will discover and serve all configured identities and protocols from FASTN_HOME");
     
-    // Load identity private key (server applications need the full fastn-p2p crate)
-    let private_key = load_identity_key(&identity).await?;
-    println!("🔑 Loaded identity key for: {} ({})", identity, private_key.public_key().id52());
-    
-    // Start P2P server listening for Echo protocol requests
-    println!("📡 Starting P2P listener for Echo protocol...");
-    fastn_p2p::listen(private_key)
-        .handle_requests(EchoProtocol::Echo, echo_handler)
+    // Use modern serve_all() builder that discovers all identities and protocols
+    fastn_p2p::serve_all()
+        .handle_requests("Echo", fastn_p2p::echo_request_handler)
+        .serve()
         .await?;
     
     Ok(())
