@@ -1,13 +1,12 @@
-//! Request/Response Pattern Example (Client + Server)
+//! Request/Response Pattern Example (Server-Only)
 //!
-//! Demonstrates both client and server sides of the Echo protocol.
-//! Can run as either client (via lightweight fastn-p2p-client) or server (using fastn-p2p server APIs).
+//! Pure Echo protocol server using fastn-p2p server APIs.
+//! Clients use fastn-p2p CLI commands to test this server.
 //!
 //! Usage:
-//!   Server: cargo run --bin request_response server [identity_name]
-//!   Client: cargo run --bin request_response client <peer_id52> [message]
+//!   Server: cargo run --bin request_response [identity_name]
+//!   Client: echo '{"message":"Hello"}' | fastn-p2p call <server_peer_id> Echo
 
-use fastn_p2p_client;
 use serde::{Serialize, Deserialize};
 
 // Echo Protocol Definition
@@ -34,78 +33,58 @@ pub enum EchoError {
 
 type EchoResult = Result<EchoResponse, EchoError>;
 
-#[fastn_p2p_client::main]
+#[fastn_p2p::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     
-    if args.len() < 2 {
-        eprintln!("Usage:");
-        eprintln!("  {} server [identity_name]           # Start Echo protocol server", args[0]);
-        eprintln!("  {} client <peer_id52> [message]     # Send Echo request to server", args[0]);
-        eprintln!("");
-        eprintln!("Two-daemon testing setup:");
-        eprintln!("  1. Terminal 1: FASTN_HOME=/tmp/alice fastn-p2p daemon");
-        eprintln!("  2. Terminal 2: FASTN_HOME=/tmp/bob fastn-p2p daemon");  
-        eprintln!("  3. Terminal 3: FASTN_HOME=/tmp/alice {} server alice", args[0]);
-        eprintln!("  4. Terminal 4: FASTN_HOME=/tmp/bob {} client <alice_id52> \"Hello!\"", args[0]);
-        return Ok(());
-    }
+    let identity = args.get(1).unwrap_or(&"alice".to_string()).clone();
     
-    match args[1].as_str() {
-        "server" => {
-            let identity = args.get(2).unwrap_or(&"alice".to_string()).clone();
-            run_server(identity).await
-        }
-        "client" => {
-            if args.len() < 3 {
-                return Err("Client mode requires peer_id52 argument".into());
-            }
-            let target_id52 = &args[2];
-            let message = args.get(3).unwrap_or(&"Hello P2P via daemon!".to_string()).clone();
-            run_client(target_id52, message).await
-        }
-        _ => {
-            return Err("First argument must be 'server' or 'client'".into());
-        }
-    }
+    println!("🎧 Starting Echo protocol server for identity: {}", identity);
+    println!("📡 Testing setup:");
+    println!("  1. Make sure daemon is running: fastn-p2p daemon");
+    println!("  2. Create identity: fastn-p2p create-identity {}", identity);
+    println!("  3. Add protocol: fastn-p2p add-protocol {} --protocol Echo --config '{{\"max_length\": 1000}}'", identity);
+    println!("  4. Set online: fastn-p2p identity-online {}", identity);
+    println!("  5. Test with CLI: echo '{{\"message\":\"Hello\"}}' | fastn-p2p call <peer_id> Echo");
+    println!("");
+    
+    run_server(identity).await
 }
 
 async fn run_server(identity: String) -> Result<(), Box<dyn std::error::Error>> {
     println!("🎧 Starting Echo protocol server for identity: {}", identity);
-    println!("📡 Server will handle Echo requests via fastn-p2p server APIs");
     
-    // TODO: Use fastn_p2p server APIs to listen for Echo protocol requests
-    // This will use the clean server APIs from fastn-p2p crate
-    todo!("Implement Echo protocol server using fastn_p2p::listen() or similar server API");
-}
-
-async fn run_client(
-    target_id52: &str,
-    message: String,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Parse target peer ID to PublicKey for type safety
-    let target_peer: fastn_p2p_client::PublicKey = target_id52.parse()
-        .map_err(|e| format!("Invalid peer ID '{}': {}", target_id52, e))?;
-        
-    println!("📤 Sending '{}' to {} via daemon", message, target_peer.id52());
-
-    let request = EchoRequest { message };
+    // Load identity private key (server applications need the full fastn-p2p crate)
+    let private_key = load_identity_key(&identity).await?;
+    println!("🔑 Loaded identity key for: {} ({})", identity, private_key.public_key().id52());
     
-    // Use lightweight client that routes through daemon
-    let result: EchoResult = fastn_p2p_client::call(
-        "bob",                // From bob identity (daemon manages keys)
-        target_peer,          // To target peer (alice)
-        "Echo",               // Echo protocol
-        "default",            // Default Echo instance
-        request               // Request data
-    ).await?;
-
-    match result {
-        Ok(response) => println!("✅ Response: {}", response.echoed),
-        Err(error) => println!("❌ Error: {:?}", error),
-    }
+    // Start P2P server listening for Echo protocol requests
+    println!("📡 Starting P2P listener for Echo protocol...");
+    fastn_p2p::listen(private_key)
+        .handle_requests(EchoProtocol::Echo, echo_handler)
+        .await?;
     
     Ok(())
+}
+
+/// Load identity private key from current environment
+async fn load_identity_key(identity: &str) -> Result<fastn_p2p::SecretKey, Box<dyn std::error::Error>> {
+    // Use FASTN_HOME environment variable to locate identity
+    let fastn_home = std::env::var("FASTN_HOME")
+        .unwrap_or_else(|_| {
+            let home = std::env::var("HOME").unwrap_or("/tmp".to_string());
+            format!("{}/.fastn", home)
+        });
+    
+    let identity_dir = std::path::PathBuf::from(fastn_home)
+        .join("identities")
+        .join(identity);
+    
+    // Load the private key using fastn-id52
+    match fastn_p2p::SecretKey::load_from_dir(&identity_dir, "identity") {
+        Ok((_id52, secret_key)) => Ok(secret_key),
+        Err(e) => Err(format!("Failed to load identity '{}': {}", identity, e).into()),
+    }
 }
 
 /// Echo request handler (server-side logic)
