@@ -1,0 +1,179 @@
+name: Dual Droplet P2P End-to-End Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, feat/daemon-p2p-routing ]
+    paths:
+      - '**.rs'
+      - '**/Cargo.toml'
+      - 'scripts/**'
+      - '.github/workflows/dual-droplet-p2p-test.yml'
+
+env:
+  DROPLET_SIZE: s-1vcpu-1gb
+  DROPLET_REGION: nyc3
+  DROPLET_IMAGE: ubuntu-22-04-x64
+
+jobs:
+  dual-droplet-p2p-test:
+    name: Dual Droplet P2P Communication Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install doctl (Digital Ocean CLI)
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+          
+      - name: Build fastn-p2p binaries
+        run: |
+          cargo build --release --bin fastn-p2p
+          cargo build --release --bin request_response
+          
+      - name: Create deployment artifacts
+        run: |
+          mkdir -p artifacts
+          cp target/release/fastn-p2p artifacts/
+          cp target/release/request_response artifacts/
+          cp scripts/cli/test-request-response.sh artifacts/
+          chmod +x artifacts/*
+          
+      - name: Create alice droplet (server)
+        id: alice_droplet
+        run: |
+          ALICE_ID=$(doctl compute droplet create \
+            fastn-alice-test-$(date +%s) \
+            --size $DROPLET_SIZE \
+            --region $DROPLET_REGION \
+            --image $DROPLET_IMAGE \
+            --ssh-keys ${{ secrets.DO_SSH_KEY_FINGERPRINT }} \
+            --wait \
+            --format ID \
+            --no-header)
+          echo "alice_id=$ALICE_ID" >> $GITHUB_OUTPUT
+          
+          ALICE_IP=$(doctl compute droplet get $ALICE_ID --format PublicIPv4 --no-header)
+          echo "alice_ip=$ALICE_IP" >> $GITHUB_OUTPUT
+          
+          echo "🟢 Alice droplet created: $ALICE_ID ($ALICE_IP)"
+          
+      - name: Create bob droplet (client)
+        id: bob_droplet
+        run: |
+          BOB_ID=$(doctl compute droplet create \
+            fastn-bob-test-$(date +%s) \
+            --size $DROPLET_SIZE \
+            --region $DROPLET_REGION \
+            --image $DROPLET_IMAGE \
+            --ssh-keys ${{ secrets.DO_SSH_KEY_FINGERPRINT }} \
+            --wait \
+            --format ID \
+            --no-header)
+          echo "bob_id=$BOB_ID" >> $GITHUB_OUTPUT
+          
+          BOB_IP=$(doctl compute droplet get $BOB_ID --format PublicIPv4 --no-header)
+          echo "bob_ip=$BOB_IP" >> $GITHUB_OUTPUT
+          
+          echo "🔵 Bob droplet created: $BOB_ID ($BOB_IP)"
+          
+      - name: Wait for droplets to be ready
+        run: |
+          echo "⏳ Waiting for droplets to be ready for SSH..."
+          sleep 60
+          
+      - name: Deploy to alice droplet
+        run: |
+          # Copy binaries and setup alice as server
+          scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            artifacts/* root@${{ steps.alice_droplet.outputs.alice_ip }}:/root/
+            
+          # Install dependencies and start alice's daemon + server
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            root@${{ steps.alice_droplet.outputs.alice_ip }} << 'EOF'
+          apt-get update
+          apt-get install -y build-essential
+          
+          # Start alice's daemon
+          export FASTN_HOME=/root/alice
+          ./fastn-p2p daemon &
+          sleep 5
+          
+          # Create alice identity and add Echo protocol
+          ./fastn-p2p create-identity alice
+          ./fastn-p2p add-protocol alice --protocol Echo --config '{"max_message_length": 1000}'
+          ./fastn-p2p identity-online alice
+          
+          # Start Echo server
+          ./request_response server alice &
+          
+          # Get alice's peer ID for bob to use
+          ALICE_ID52=$(./fastn-p2p status | grep -o 'alice (ONLINE) - [a-z0-9]*' | grep -o '[a-z0-9]*$')
+          echo "ALICE_PEER_ID=$ALICE_ID52" > /root/alice_peer_id.txt
+          
+          echo "🟢 Alice server setup complete"
+          EOF
+          
+      - name: Deploy to bob droplet
+        run: |
+          # Copy binaries to bob
+          scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            artifacts/* root@${{ steps.bob_droplet.outputs.bob_ip }}:/root/
+            
+          # Install dependencies and start bob's daemon
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            root@${{ steps.bob_droplet.outputs.bob_ip }} << 'EOF'
+          apt-get update
+          apt-get install -y build-essential
+          
+          # Start bob's daemon
+          export FASTN_HOME=/root/bob
+          ./fastn-p2p daemon &
+          sleep 5
+          
+          # Create bob identity
+          ./fastn-p2p create-identity bob
+          ./fastn-p2p identity-online bob
+          
+          echo "🔵 Bob client setup complete"
+          EOF
+          
+      - name: Get alice's peer ID
+        id: alice_peer_id
+        run: |
+          ALICE_PEER_ID=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            root@${{ steps.alice_droplet.outputs.alice_ip }} \
+            "cat /root/alice_peer_id.txt | cut -d'=' -f2")
+          echo "alice_peer_id=$ALICE_PEER_ID" >> $GITHUB_OUTPUT
+          echo "🔑 Alice's peer ID: $ALICE_PEER_ID"
+          
+      - name: Test P2P communication
+        run: |
+          echo "📞 Testing Bob → Alice P2P communication..."
+          
+          # Bob sends Echo request to Alice via real P2P network
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            root@${{ steps.bob_droplet.outputs.bob_ip }} << EOF
+          export FASTN_HOME=/root/bob
+          ./request_response client "${{ steps.alice_peer_id.outputs.alice_peer_id }}" "Hello Alice from Bob via GitHub CI P2P!"
+          EOF
+          
+          echo "✅ P2P communication test completed!"
+          
+      - name: Cleanup droplets
+        if: always()
+        run: |
+          echo "🧹 Cleaning up test droplets..."
+          doctl compute droplet delete ${{ steps.alice_droplet.outputs.alice_id }} --force || true
+          doctl compute droplet delete ${{ steps.bob_droplet.outputs.bob_id }} --force || true
+          echo "✅ Cleanup complete"
