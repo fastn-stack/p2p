@@ -37,21 +37,60 @@ type EchoResult = Result<EchoResponse, EchoError>;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     
-    let identity = args.get(1).unwrap_or(&"alice".to_string()).clone();
+    if args.len() < 2 {
+        eprintln!("Usage:");
+        eprintln!("  {} init                             # Initialize FASTN_HOME environment", args[0]);
+        eprintln!("  {} run                              # Start Echo protocol server", args[0]);
+        eprintln!("");
+        eprintln!("Testing sequence:");
+        eprintln!("  1. FASTN_HOME=/tmp/alice {} init", args[0]);
+        eprintln!("  2. FASTN_HOME=/tmp/alice fastn-p2p daemon &");
+        eprintln!("  3. FASTN_HOME=/tmp/alice fastn-p2p create-identity alice");
+        eprintln!("  4. FASTN_HOME=/tmp/alice fastn-p2p add-protocol alice --protocol echo.fastn.com");
+        eprintln!("  5. FASTN_HOME=/tmp/alice fastn-p2p identity-online alice");
+        eprintln!("  6. FASTN_HOME=/tmp/alice {} run", args[0]);
+        eprintln!("  7. echo '{{\"message\":\"Hello\"}}' | FASTN_HOME=/tmp/alice fastn-p2p call <alice_peer_id> echo.fastn.com basic-echo");
+        return Ok(());
+    }
     
-    println!("🎧 Starting Echo protocol server for identity: {}", identity);
-    println!("📡 Testing setup:");
-    println!("  1. Make sure daemon is running: fastn-p2p daemon");
-    println!("  2. Create identity: fastn-p2p create-identity {}", identity);
-    println!("  3. Add protocol: fastn-p2p add-protocol {} --protocol Echo --config '{{\"max_length\": 1000}}'", identity);
-    println!("  4. Set online: fastn-p2p identity-online {}", identity);
-    println!("  5. Test with CLI: echo '{{\"message\":\"Hello\"}}' | fastn-p2p call <peer_id> Echo");
-    println!("");
-    
-    run_server(identity).await
+    match args[1].as_str() {
+        "init" => {
+            init_environment().await
+        }
+        "run" => {
+            run_server().await
+        }
+        _ => {
+            return Err("Command must be 'init' or 'run'".into());
+        }
+    }
 }
 
-async fn run_server(_identity: String) -> Result<(), Box<dyn std::error::Error>> {
+async fn init_environment() -> Result<(), Box<dyn std::error::Error>> {
+    let fastn_home = std::env::var("FASTN_HOME")
+        .unwrap_or_else(|_| "/tmp/alice".to_string());
+    
+    println!("🔧 Initializing FASTN_HOME: {}", fastn_home);
+    
+    // Create basic directory structure
+    let fastn_path = std::path::PathBuf::from(&fastn_home);
+    tokio::fs::create_dir_all(&fastn_path).await?;
+    tokio::fs::create_dir_all(fastn_path.join("identities")).await?;
+    
+    println!("✅ FASTN_HOME initialized");
+    println!("📁 Directory structure created");
+    println!("");
+    println!("Next steps:");
+    println!("  1. Start daemon: FASTN_HOME={} fastn-p2p daemon &", fastn_home);
+    println!("  2. Create identity: FASTN_HOME={} fastn-p2p create-identity alice", fastn_home);
+    println!("  3. Add protocol: FASTN_HOME={} fastn-p2p add-protocol alice --protocol echo.fastn.com --config '{{\"max_length\": 1000}}'", fastn_home);
+    println!("  4. Set online: FASTN_HOME={} fastn-p2p identity-online alice", fastn_home);
+    println!("  5. Start server: FASTN_HOME={} {} run", fastn_home, std::env::args().collect::<Vec<_>>()[0]);
+    
+    Ok(())
+}
+
+async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎧 Starting multi-identity Echo protocol server");
     println!("📡 Will discover and serve all configured identities and protocols from FASTN_HOME");
     
