@@ -27,6 +27,7 @@ pub mod control;
 pub mod p2p;
 pub mod protocols;
 pub mod test_protocols;
+pub mod protocol_trait;
 
 /// Daemon command for coordinating between control socket and P2P
 #[derive(Debug, Clone)]

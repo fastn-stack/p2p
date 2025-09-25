@@ -63,19 +63,9 @@ pub async fn add_protocol(
         return Err(format!("Protocol binding '{}' as '{}' already exists for identity '{}'", protocol, bind_alias, identity).into());
     }
     
-    // Initialize the protocol handler (creates config files)
-    match protocol.as_str() {
-        "Echo" => {
-            use crate::cli::daemon::protocols::echo;
-            echo::init(bind_alias.clone(), protocol_config_path.clone()).await?;
-        }
-        "Shell" => {
-            use crate::cli::daemon::protocols::shell;
-            shell::init(bind_alias.clone(), protocol_config_path.clone()).await?;
-        }
-        _ => {
-            return Err(format!("Unknown protocol: {}", protocol).into());
-        }
+    // Initialize the protocol handler using trait interface
+    if let Err(e) = crate::cli::daemon::protocol_trait::init_protocol(&protocol, &bind_alias, &protocol_config_path).await {
+        return Err(format!("Failed to initialize {} protocol: {}", protocol, e).into());
     }
     
     // Write the initial config JSON to the protocol directory

@@ -2,9 +2,7 @@
 //!
 //! Streaming protocol for remote command execution.
 
-use tokio::sync::broadcast;
-
-use super::super::{DaemonResponse};
+use crate::cli::daemon::protocol_trait::Protocol;
 
 /// Shell command structure
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -32,44 +30,47 @@ pub enum ShellError {
     Timeout,
 }
 
-/// Initialize the Shell protocol handler - creates config directory and default config
-pub async fn init(
-    bind_alias: String,
-    config_path: std::path::PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Create config directory, write default shell.json config file with allowed commands, security settings");
-}
+/// Shell protocol implementation
+pub struct ShellProtocol;
 
-/// Load the Shell protocol handler - assumes config already exists
-pub async fn load(
-    bind_alias: String,
-    config_path: std::path::PathBuf,
-    identity_key: fastn_id52::SecretKey,
-) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Read config from config_path/shell.json, start P2P streaming listener, register shell handlers");
-}
-
-/// Reload the Shell protocol handler - re-read config and restart services
-pub async fn reload(
-    bind_alias: String,
-    config_path: std::path::PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Stop current shell service, re-read config, restart with updated security settings");
-}
-
-/// Stop the Shell protocol handler  
-pub async fn stop(
-    bind_alias: String,
-) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Clean shutdown of Shell protocol streaming listener and command handlers");
-}
-
-/// Check Shell protocol configuration without changing runtime
-pub async fn check(
-    bind_alias: String,
-    config_path: std::path::PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Validate config_path/shell.json exists, has valid security settings, allowed commands list, report issues");
+#[async_trait::async_trait]
+impl Protocol for ShellProtocol {
+    const NAME: &'static str = "Shell";
+    
+    async fn init(
+        bind_alias: &str,
+        config_path: &std::path::PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        todo!("Create Shell config directory, write default shell config.json with security settings for bind_alias: {}", bind_alias);
+    }
+    
+    async fn load(
+        bind_alias: &str,
+        config_path: &std::path::PathBuf,
+        identity_key: &fastn_id52::SecretKey,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        todo!("Load Shell config from {}, start P2P Shell streaming listener for identity {}, bind_alias: {}", config_path.display(), identity_key.public_key().id52(), bind_alias);
+    }
+    
+    async fn reload(
+        bind_alias: &str,
+        config_path: &std::path::PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        todo!("Reload Shell config from {}, restart Shell services for bind_alias: {}", config_path.display(), bind_alias);
+    }
+    
+    async fn stop(
+        bind_alias: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        todo!("Stop Shell protocol services for bind_alias: {}", bind_alias);
+    }
+    
+    async fn check(
+        bind_alias: &str,
+        config_path: &std::path::PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        todo!("Check Shell config at {} for bind_alias: {} - validate security settings, allowed commands", config_path.display(), bind_alias);
+    }
 }
 
 /// Handle Shell protocol streaming sessions

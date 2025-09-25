@@ -2,49 +2,50 @@
 //!
 //! Simple request/response protocol that echoes back messages.
 
-use tokio::sync::broadcast;
-
 use crate::cli::daemon::test_protocols::{EchoRequest, EchoResponse, EchoError};
-use super::super::{DaemonResponse};
+use crate::cli::daemon::protocol_trait::Protocol;
 
-/// Initialize the Echo protocol handler - creates config directory and default config
-pub async fn init(
-    bind_alias: String,
-    config_path: std::path::PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Create config directory, write default echo.json config file, set up protocol workspace");
-}
+/// Echo protocol implementation
+pub struct EchoProtocol;
 
-/// Load the Echo protocol handler - assumes config already exists
-pub async fn load(
-    bind_alias: String,
-    config_path: std::path::PathBuf,
-    identity_key: fastn_id52::SecretKey,
-) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Read config from config_path/echo.json, start P2P listener, register echo handlers");
-}
-
-/// Reload the Echo protocol handler - re-read config and restart services
-pub async fn reload(
-    bind_alias: String,
-    config_path: std::path::PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Stop current service, re-read config, restart P2P listener with new config");
-}
-
-/// Stop the Echo protocol handler
-pub async fn stop(
-    bind_alias: String,
-) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Clean shutdown of Echo protocol P2P listener and handlers");
-}
-
-/// Check Echo protocol configuration without changing runtime
-pub async fn check(
-    bind_alias: String,
-    config_path: std::path::PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
-    todo!("Validate config_path/echo.json exists, is valid JSON, has required fields, report any issues");
+#[async_trait::async_trait]
+impl Protocol for EchoProtocol {
+    const NAME: &'static str = "Echo";
+    
+    async fn init(
+        bind_alias: &str,
+        config_path: &std::path::PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        todo!("Create Echo config directory, write default echo config.json, set up Echo workspace for bind_alias: {}", bind_alias);
+    }
+    
+    async fn load(
+        bind_alias: &str,
+        config_path: &std::path::PathBuf,
+        identity_key: &fastn_id52::SecretKey,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        todo!("Load Echo config from {}, start P2P Echo listener for identity {}, bind_alias: {}", config_path.display(), identity_key.public_key().id52(), bind_alias);
+    }
+    
+    async fn reload(
+        bind_alias: &str,
+        config_path: &std::path::PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        todo!("Reload Echo config from {}, restart Echo services for bind_alias: {}", config_path.display(), bind_alias);
+    }
+    
+    async fn stop(
+        bind_alias: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        todo!("Stop Echo protocol services for bind_alias: {}", bind_alias);
+    }
+    
+    async fn check(
+        bind_alias: &str,
+        config_path: &std::path::PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        todo!("Check Echo config at {} for bind_alias: {} - validate config.json, report issues", config_path.display(), bind_alias);
+    }
 }
 
 /// Handle Echo protocol requests
