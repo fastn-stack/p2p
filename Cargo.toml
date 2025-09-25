@@ -57,6 +57,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs", "sync"] }
+fs2 = "0.4"
+uuid = { version = "1.0", features = ["v4"] }
 tokio-stream = "0.1"
 tokio-util = "0.7"
 tracing = "0.1"
@@ -74,6 +76,7 @@ syn = { version = "2", features = ["full", "extra-traits"] }
 fastn-id52 = { path = "fastn-id52" }
 fastn-net = { path = "fastn-net" }
 fastn-p2p = { path = "fastn-p2p" }
+fastn-p2p-client = { path = "fastn-p2p-client" }
 
 # Optional automerge support (keeping from original)
 autosurgeon = "0.8"
