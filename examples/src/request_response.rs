@@ -55,9 +55,9 @@ async fn run_server(_identity: String) -> Result<(), Box<dyn std::error::Error>>
     println!("🎧 Starting multi-identity Echo protocol server");
     println!("📡 Will discover and serve all configured identities and protocols from FASTN_HOME");
     
-    // Use modern serve_all() builder that discovers all identities and protocols
+    // Use modern serve_all() builder with protocol.command API
     fastn_p2p::serve_all()
-        .handle_requests("Echo", fastn_p2p::echo_request_handler)
+        .handle_requests("echo.fastn.com", "basic-echo", fastn_p2p::echo_request_handler)
         .serve()
         .await?;
     

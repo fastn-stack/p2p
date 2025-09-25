@@ -8,18 +8,22 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
-/// Async callback type for request/response protocols
+/// Async callback type for request/response protocol commands
 pub type RequestCallback = fn(
     &str,                    // identity
     &str,                    // bind_alias  
+    &str,                    // protocol (e.g., "mail.fastn.com")
+    &str,                    // command (e.g., "settings.add-forwarding")
     &PathBuf,               // protocol_dir
     serde_json::Value,      // request
 ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
-/// Async callback type for streaming protocols
+/// Async callback type for streaming protocol commands
 pub type StreamCallback = fn(
     &str,                    // identity
     &str,                    // bind_alias
+    &str,                    // protocol (e.g., "filetransfer.fastn.com")
+    &str,                    // command (e.g., "transfer.large-file")
     &PathBuf,               // protocol_dir
     serde_json::Value,      // initial_data
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
@@ -27,20 +31,39 @@ pub type StreamCallback = fn(
 /// Multi-identity server builder that discovers and serves all configured protocols
 pub struct ServeAllBuilder {
     fastn_home: PathBuf,
-    request_callbacks: HashMap<String, RequestCallback>,
-    stream_callbacks: HashMap<String, StreamCallback>,
+    request_callbacks: HashMap<String, RequestCallback>,  // Key: "protocol.command"
+    stream_callbacks: HashMap<String, StreamCallback>,    // Key: "protocol.command"
 }
 
 impl ServeAllBuilder {
-    /// Register a request/response callback for a protocol
-    pub fn handle_requests(mut self, protocol_name: &str, callback: RequestCallback) -> Self {
-        self.request_callbacks.insert(protocol_name.to_string(), callback);
+    /// Register a request/response callback for a protocol command
+    ///
+    /// # Arguments
+    /// * `protocol` - Protocol name (e.g., "mail.fastn.com", "echo.fastn.com")
+    /// * `command` - Command name (e.g., "get-mails", "send-mail", "basic-echo")
+    /// * `callback` - Handler function
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// fastn_p2p::serve_all()
+    ///     .handle_requests("mail.fastn.com", "get-mails", get_mails_handler)
+    ///     .handle_requests("mail.fastn.com", "send-mail", send_mail_handler)
+    /// ```
+    pub fn handle_requests(mut self, protocol: &str, command: &str, callback: RequestCallback) -> Self {
+        let key = format!("{}.{}", protocol, command);
+        self.request_callbacks.insert(key, callback);
         self
     }
     
-    /// Register a streaming callback for a protocol  
-    pub fn handle_streams(mut self, protocol_name: &str, callback: StreamCallback) -> Self {
-        self.stream_callbacks.insert(protocol_name.to_string(), callback);
+    /// Register a streaming callback for a protocol command
+    ///
+    /// # Arguments
+    /// * `protocol` - Protocol name (e.g., "filetransfer.fastn.com") 
+    /// * `command` - Command name (e.g., "large-file", "media-stream")
+    /// * `callback` - Handler function
+    pub fn handle_streams(mut self, protocol: &str, command: &str, callback: StreamCallback) -> Self {
+        let key = format!("{}.{}", protocol, command);
+        self.stream_callbacks.insert(key, callback);
         self
     }
     
@@ -124,21 +147,27 @@ pub fn serve_all() -> ServeAllBuilder {
     }
 }
 
-/// Echo request handler callback
+/// Echo request handler callback for basic-echo command
 pub fn echo_request_handler(
     identity: &str,
     bind_alias: &str,
+    protocol: &str,
+    command: &str,
     protocol_dir: &PathBuf,
     request: serde_json::Value,
 ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>> + Send>> {
     let identity = identity.to_string();
     let bind_alias = bind_alias.to_string();
+    let protocol = protocol.to_string();
+    let command = command.to_string();
     let protocol_dir = protocol_dir.clone();
     
     Box::pin(async move {
         println!("💬 Echo handler called:");
         println!("   Identity: {}", identity);
         println!("   Bind alias: {}", bind_alias);
+        println!("   Protocol: {}", protocol);
+        println!("   Command: {}", command);
         println!("   Protocol dir: {}", protocol_dir.display());
         
         // Parse request
@@ -154,7 +183,7 @@ pub fn echo_request_handler(
         
         // Create response
         let response = serde_json::json!({
-            "echoed": format!("Echo from {}: {}", identity, message)
+            "echoed": format!("Echo from {} ({}): {}", identity, command, message)
         });
         
         println!("📤 Echo response: {}", response);
