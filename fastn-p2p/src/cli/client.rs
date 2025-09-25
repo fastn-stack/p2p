@@ -54,15 +54,14 @@ pub async fn call(
     let mut stream = UnixStream::connect(&socket_path).await
         .map_err(|e| format!("Failed to connect to daemon: {}", e))?;
     
-    // Create typed request for daemon
-    let daemon_request = serde_json::json!({
-        "type": "call",
-        "from_identity": from_identity,
-        "to_peer": to_peer,
-        "protocol": protocol,
-        "bind_alias": bind_alias,
-        "request": request_json
-    });
+    // Create typed request using shared daemon protocol structure
+    let daemon_request = fastn_p2p_client::DaemonRequest::Call {
+        from_identity,
+        to_peer,
+        protocol,
+        bind_alias,
+        request: request_json,
+    };
     
     // Send request to daemon
     let request_data = serde_json::to_string(&daemon_request)?;

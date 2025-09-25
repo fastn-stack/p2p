@@ -32,8 +32,8 @@ pub mod error;
 // Re-export only PublicKey for peer identification (no SecretKey - daemon manages all keys)
 pub use fastn_id52::PublicKey;
 
-// Re-export client functions for convenience  
-pub use client::{call, connect, Session};
+// Re-export client functions and protocol types for convenience  
+pub use client::{call, connect, Session, DaemonRequest};
 
 /// Error type for client operations
 pub use error::{ClientError, ConnectionError};
