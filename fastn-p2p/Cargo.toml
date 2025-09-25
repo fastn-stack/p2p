@@ -6,10 +6,20 @@ description = "High-level, type-safe P2P communication for fastn"
 homepage.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "fastn-p2p"
+path = "src/main.rs"
 
 [dependencies]
-fastn-net = { path = "../fastn-net", version = "0.1.2" }
-fastn-id52 = { path = "../fastn-id52", version = "0.1.1" }
+clap = { workspace = true, features = ["env"] }
+directories.workspace = true
+rand.workspace = true
+chrono.workspace = true
+fs2.workspace = true
+async-trait.workspace = true
+fastn-net.workspace = true
+fastn-id52.workspace = true
+fastn-p2p-client.workspace = true
 async-stream.workspace = true
 eyre.workspace = true
 futures-core.workspace = true
