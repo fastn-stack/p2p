@@ -16,6 +16,7 @@ pub type RequestCallback = fn(
     &str,                    // command (e.g., "settings.add-forwarding")
     &PathBuf,               // protocol_dir
     serde_json::Value,      // request
+    &[String],              // args (issue #13: stdargs support)
 ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
 /// Async callback type for streaming protocol commands
@@ -26,6 +27,7 @@ pub type StreamCallback = fn(
     &str,                    // command (e.g., "transfer.large-file")
     &PathBuf,               // protocol_dir
     serde_json::Value,      // initial_data
+    &[String],              // args (issue #13: stdargs support)
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
 /// Protocol binding context passed to all handlers
@@ -49,6 +51,7 @@ pub type GlobalLoadCallback = fn(&str) -> Pin<Box<dyn Future<Output = Result<(),
 pub type GlobalUnloadCallback = fn(&str) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
 /// Protocol command handlers for a specific protocol
+#[derive(Clone)]
 pub struct ProtocolBuilder {
     protocol_name: String,
     request_callbacks: HashMap<String, RequestCallback>,  // Key: command name
@@ -313,9 +316,11 @@ impl ServeAllBuilder {
             }
         }
         
-        println!("🎯 Multi-identity server ready (TODO: implement actual P2P listening)");
+        println!("🎯 Multi-identity server ready");
+        println!("📡 TODO: Implement P2P listeners with enhanced ProtocolHeader.extra routing");
+        println!("🎧 TODO: Create Unix socket daemon interface");
         
-        // Keep server running
+        // Keep server running for now
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
@@ -328,15 +333,23 @@ impl ServeAllBuilder {
 
     async fn handle_call_command(&self, args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         if args.len() < 4 {
-            eprintln!("Usage: {} call <peer> <protocol> [bind_alias] [--as-identity <identity>]", args[0]);
+            eprintln!("Usage: {} call <peer> <protocol> [command] [bind_alias] [extra_args...] [--as-identity <identity>]", args[0]);
             std::process::exit(1);
         }
         let peer = args[2].clone();
         let protocol = args[3].clone();
-        let bind_alias = args.get(4).cloned().unwrap_or_else(|| "default".to_string());
+        let command = args.get(4).cloned().unwrap_or_else(|| "basic-echo".to_string());
+        let bind_alias = args.get(5).cloned().unwrap_or_else(|| "default".to_string());
+        
+        // Collect extra args (issue #13: stdargs support)
+        let extra_args: Vec<String> = args.iter().skip(6)
+            .filter(|arg| !arg.starts_with("--"))
+            .cloned()
+            .collect();
+        
         let as_identity = None; // TODO: parse --as-identity flag
         
-        crate::cli::client::call(self.fastn_home.clone(), peer, protocol, bind_alias, as_identity).await
+        crate::cli::client::call_with_args(self.fastn_home.clone(), peer, protocol, command, bind_alias, extra_args, as_identity).await
     }
 
     async fn handle_stream_command(&self, args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
@@ -502,12 +515,14 @@ pub fn echo_request_handler(
     command: &str,
     protocol_dir: &PathBuf,
     request: serde_json::Value,
+    args: &[String],
 ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>> + Send>> {
     let identity = identity.to_string();
     let bind_alias = bind_alias.to_string();
     let protocol = protocol.to_string();
     let command = command.to_string();
     let protocol_dir = protocol_dir.clone();
+    let args = args.to_vec();
     
     Box::pin(async move {
         println!("💬 Echo handler called:");
@@ -516,6 +531,7 @@ pub fn echo_request_handler(
         println!("   Protocol: {}", protocol);
         println!("   Command: {}", command);
         println!("   Protocol dir: {}", protocol_dir.display());
+        println!("   Args: {:?}", args);
         
         // Parse request
         let message = request.get("message")
@@ -528,9 +544,15 @@ pub fn echo_request_handler(
         
         println!("   Message: '{}'", message);
         
-        // Create response
+        // Create response with args support
+        let args_info = if args.is_empty() {
+            String::new()
+        } else {
+            format!(" [args: {}]", args.join(", "))
+        };
+        
         let response = serde_json::json!({
-            "echoed": format!("Echo from {} ({}): {}", identity, command, message)
+            "echoed": format!("Echo from {} ({}): {}{}", identity, command, message, args_info)
         });
         
         println!("📤 Echo response: {}", response);
