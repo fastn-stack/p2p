@@ -20,6 +20,16 @@ pub enum DaemonRequest<T> {
         bind_alias: String,
         request: T,
     },
+    #[serde(rename = "call_with_args")]
+    CallWithArgs {
+        from_identity: String,
+        to_peer: fastn_id52::PublicKey,
+        protocol: String,
+        command: String,
+        bind_alias: String,
+        args: Vec<String>,
+        request: T,
+    },
     #[serde(rename = "stream")]
     Stream {
         from_identity: String,

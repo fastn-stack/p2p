@@ -1,7 +1,7 @@
-//! fastn-p2p: P2P daemon and client
+//! fastn-p2p: P2P client and identity management
 //!
-//! This binary provides both daemon and client functionality for P2P communication.
-//! It uses Unix domain sockets for communication between client and daemon.
+//! This binary provides client functionality and identity management.
+//! Protocol servers run as separate daemons using serve_all() API.
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -10,7 +10,7 @@ mod cli;
 
 #[derive(Parser)]
 #[command(name = "fastn-p2p")]
-#[command(about = "P2P daemon and client for fastn")]
+#[command(about = "P2P client and identity management for fastn")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -18,8 +18,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Start the P2P daemon in foreground mode
-    Daemon {
+    /// Initialize FASTN_HOME directory structure
+    Init {
         /// Custom FASTN_HOME directory (defaults to FASTN_HOME env var or ~/.fastn)
         #[arg(long, env = "FASTN_HOME")]
         home: Option<PathBuf>,
@@ -118,11 +118,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Daemon { home } => {
+        Commands::Init { home } => {
             let fastn_home = cli::get_fastn_home(home)?;
-            println!("🚀 Starting fastn-p2p daemon");
-            println!("📁 FASTN_HOME: {}", fastn_home.display());
-            cli::daemon::run(fastn_home).await
+            println!("🔧 Initializing FASTN_HOME: {}", fastn_home.display());
+            cli::init::run(fastn_home).await
         }
         Commands::Call { peer, protocol, bind_alias, as_identity, home } => {
             let fastn_home = cli::get_fastn_home(home)?;
