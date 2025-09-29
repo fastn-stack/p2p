@@ -169,9 +169,18 @@ pub const APNS_IDENTITY: &[u8] = b"/fastn/entity/0.1";
 ///
 /// Sent at the beginning of each bidirectional stream to identify
 /// the protocol and provide any protocol-specific metadata.
-#[derive(Debug)]
+/// 
+/// Enhanced for revolutionary serve_all() architecture with proper command routing.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct ProtocolHeader {
     pub protocol: Protocol,
+    
+    // Revolutionary serve_all() routing support
+    pub command: Option<String>,        // e.g., "inbox.get-mails"
+    pub bind_alias: Option<String>,     // e.g., "primary", "backup"  
+    pub args: Vec<String>,              // CLI args support (issue #13)
+    
+    // Legacy compatibility
     pub extra: Option<String>,
 }
 
@@ -179,7 +188,37 @@ impl From<Protocol> for ProtocolHeader {
     fn from(protocol: Protocol) -> Self {
         Self {
             protocol,
+            command: None,
+            bind_alias: None,
+            args: Vec::new(),
             extra: None,
         }
+    }
+}
+
+impl ProtocolHeader {
+    /// Create enhanced protocol header for serve_all() routing
+    pub fn with_serve_all_routing(
+        protocol: Protocol,
+        command: String,
+        bind_alias: String,
+        args: Vec<String>,
+    ) -> Self {
+        Self {
+            protocol,
+            command: Some(command),
+            bind_alias: Some(bind_alias),
+            args,
+            extra: None,
+        }
+    }
+    
+    /// Parse serve_all() routing information
+    pub fn parse_serve_all_routing(&self) -> (Option<&str>, Option<&str>, &[String]) {
+        (
+            self.command.as_deref(),
+            self.bind_alias.as_deref(),
+            &self.args,
+        )
     }
 }
