@@ -29,4 +29,4 @@ pub use daemon::{
 };
 
 // Modern multi-identity server with callbacks
-pub use serve_all::{serve_all, echo_request_handler};
+pub use serve_all::serve_all;

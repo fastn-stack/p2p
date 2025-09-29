@@ -83,36 +83,19 @@
 //! based on performance requirements.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub enum Protocol {
-    /// client can send this message to check if the connection is open / healthy.
+    /// Active built-in protocols
     Ping,
-    /// client may not be using NTP, or may only have p2p access and no other internet access, in
-    /// which case it can ask for the time from the peers and try to create a consensus.
     WhatTimeIsIt,
-    /// client wants to make an HTTP request to a device whose ID is specified. note that the exact
-    /// ip:port is not known to peers, they only the "device id" for the service. server will figure
-    /// out the ip:port from the device id.
     Http,
     HttpProxy,
-    /// if the client wants their traffic to route via this server, they can send this. for this to
-    /// work, the person owning the device must have created a SOCKS5 device, and allowed this peer
-    /// to access it.
     Socks5,
     Tcp,
-    // TODO: RTP/"RTCP" for audio video streaming
-
-    // Fastn-specific protocols for entity communication
-    /// Messages from Device to Account (sync requests, status reports, etc.)
-    DeviceToAccount,
-    /// Messages between Accounts (email, file sharing, automerge sync, etc.)
-    AccountToAccount,
-    /// Messages from Account to Device (commands, config updates, notifications, etc.)
-    AccountToDevice,
-    /// Control messages for Rig management (bring online/offline, set current, etc.)
-    RigControl,
-
-    /// Generic protocol for user-defined types
-    /// This allows users to define their own protocol types while maintaining
-    /// compatibility with the existing fastn-net infrastructure.
+    
+    /// Revolutionary per-application protocols for serve_all() architecture
+    /// Protocol names like "mail.fastn.com", "echo.fastn.com", etc.
+    Application(String),
+    
+    /// Legacy generic protocol (still used by existing fastn-p2p code)
     Generic(serde_json::Value),
 }
 
@@ -125,10 +108,7 @@ impl std::fmt::Display for Protocol {
             Protocol::HttpProxy => write!(f, "HttpProxy"),
             Protocol::Socks5 => write!(f, "Socks5"),
             Protocol::Tcp => write!(f, "Tcp"),
-            Protocol::DeviceToAccount => write!(f, "DeviceToAccount"),
-            Protocol::AccountToAccount => write!(f, "AccountToAccount"),
-            Protocol::AccountToDevice => write!(f, "AccountToDevice"),
-            Protocol::RigControl => write!(f, "RigControl"),
+            Protocol::Application(name) => write!(f, "{}", name),
             Protocol::Generic(value) => write!(f, "Generic({value})"),
         }
     }
@@ -165,22 +145,25 @@ mod tests {
 /// See module documentation for detailed rationale.
 pub const APNS_IDENTITY: &[u8] = b"/fastn/entity/0.1";
 
-/// Protocol header with optional metadata.
+/// Protocol header for both built-in and revolutionary serve_all() protocols.
 ///
 /// Sent at the beginning of each bidirectional stream to identify
-/// the protocol and provide any protocol-specific metadata.
-/// 
-/// Enhanced for revolutionary serve_all() architecture with proper command routing.
+/// the protocol and provide routing information when needed.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct ProtocolHeader {
+    /// Protocol identifier
     pub protocol: Protocol,
     
-    // Revolutionary serve_all() routing support
-    pub command: Option<String>,        // e.g., "inbox.get-mails"
-    pub bind_alias: Option<String>,     // e.g., "primary", "backup"  
-    pub args: Vec<String>,              // CLI args support (issue #13)
+    /// Command within the protocol (for Application protocols only)
+    pub command: Option<String>,
     
-    // Legacy compatibility
+    /// Protocol binding alias (for Application protocols only)  
+    pub bind_alias: Option<String>,
+    
+    /// CLI arguments support (issue #13: stdargs)
+    pub args: Vec<String>,
+    
+    /// Legacy compatibility for extra protocol data
     pub extra: Option<String>,
 }
 
@@ -188,8 +171,8 @@ impl From<Protocol> for ProtocolHeader {
     fn from(protocol: Protocol) -> Self {
         Self {
             protocol,
-            command: None,
-            bind_alias: None,
+            command: None,       // Built-in protocols don't need commands
+            bind_alias: None,    // Built-in protocols don't need bind aliases
             args: Vec::new(),
             extra: None,
         }
@@ -197,15 +180,15 @@ impl From<Protocol> for ProtocolHeader {
 }
 
 impl ProtocolHeader {
-    /// Create enhanced protocol header for serve_all() routing
-    pub fn with_serve_all_routing(
-        protocol: Protocol,
+    /// Create protocol header for serve_all() Application protocols
+    pub fn for_application(
+        protocol_name: String,
         command: String,
         bind_alias: String,
         args: Vec<String>,
     ) -> Self {
         Self {
-            protocol,
+            protocol: Protocol::Application(protocol_name),
             command: Some(command),
             bind_alias: Some(bind_alias),
             args,
@@ -213,12 +196,22 @@ impl ProtocolHeader {
         }
     }
     
-    /// Parse serve_all() routing information
-    pub fn parse_serve_all_routing(&self) -> (Option<&str>, Option<&str>, &[String]) {
-        (
-            self.command.as_deref(),
-            self.bind_alias.as_deref(),
-            &self.args,
-        )
+    /// Get routing information for serve_all() (returns None for built-in protocols)
+    pub fn serve_all_routing(&self) -> Option<(&str, &str, &str, &[String])> {
+        match &self.protocol {
+            Protocol::Application(protocol_name) => {
+                if let (Some(command), Some(bind_alias)) = (&self.command, &self.bind_alias) {
+                    Some((protocol_name, command, bind_alias, &self.args))
+                } else {
+                    None
+                }
+            }
+            _ => None,  // Built-in protocols don't have serve_all routing
+        }
+    }
+    
+    /// Check if this is a built-in protocol
+    pub fn is_builtin(&self) -> bool {
+        !matches!(self.protocol, Protocol::Application(_))
     }
 }

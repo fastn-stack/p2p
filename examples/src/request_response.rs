@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .on_create(echo_create_handler)
             .on_activate(echo_activate_handler)
             .on_check(echo_check_handler)
-            .handle_requests("basic-echo", fastn_p2p::echo_request_handler)
+            .handle_requests("basic-echo", echo_request_handler)
             .on_reload(echo_reload_handler)
             .on_deactivate(echo_deactivate_handler)
         )
@@ -99,5 +99,45 @@ fn echo_deactivate_handler(
         println!("🛑 Echo deactivate: {} {} ({})", ctx.identity.id52(), ctx.bind_alias, ctx.protocol_dir.display());
         // TODO: Stop accepting requests, but preserve data
         Ok(())
+    })
+}
+
+// Typed Echo request handler for this application
+fn echo_request_handler(
+    ctx: fastn_p2p::RequestContext,
+    request: serde_json::Value,
+) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>> + Send>> {
+    Box::pin(async move {
+        println!("💬 Echo handler called:");
+        println!("   Identity: {}", ctx.identity.id52());
+        println!("   Bind alias: {}", ctx.bind_alias);
+        println!("   Command: {}", ctx.command);
+        println!("   Protocol dir: {}", ctx.protocol_dir.display());
+        println!("   Args: {:?}", ctx.args);
+        
+        // Parse typed request
+        let echo_request: EchoRequest = serde_json::from_value(request)
+            .map_err(|e| format!("Invalid EchoRequest: {}", e))?;
+        
+        if echo_request.message.is_empty() {
+            return Err("Message cannot be empty".into());
+        }
+        
+        println!("   Message: '{}'", echo_request.message);
+        
+        // Create typed response with args support
+        let args_info = if ctx.args.is_empty() {
+            String::new()
+        } else {
+            format!(" [args: {}]", ctx.args.join(", "))
+        };
+        
+        let echo_response = EchoResponse {
+            echoed: format!("Echo from {} ({}): {}{}", ctx.identity.id52(), ctx.command, echo_request.message, args_info)
+        };
+        
+        let response = serde_json::to_value(echo_response)?;
+        println!("📤 Echo response: {}", response);
+        Ok(response)
     })
 }

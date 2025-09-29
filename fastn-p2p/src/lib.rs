@@ -157,10 +157,10 @@ pub mod server;
 pub mod cli;
 
 // Re-export modern server API for convenience
-pub use server::{serve_all, echo_request_handler};
+pub use server::serve_all;
 
 // Re-export serve_all types for convenience
-pub use server::serve_all::BindingContext;
+pub use server::serve_all::{BindingContext, RequestContext};
 
 // Re-export essential types from fastn-net that users need
 pub use fastn_net::{Graceful, Protocol};

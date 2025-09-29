@@ -10,32 +10,32 @@ use std::pin::Pin;
 
 /// Async callback type for request/response protocol commands
 pub type RequestCallback = fn(
-    &str,                    // identity
-    &str,                    // bind_alias  
-    &str,                    // protocol (e.g., "mail.fastn.com")
-    &str,                    // command (e.g., "settings.add-forwarding")
-    &PathBuf,               // protocol_dir
+    RequestContext,         // context (identity, bind_alias, protocol_dir, command, args)
     serde_json::Value,      // request
-    &[String],              // args (issue #13: stdargs support)
 ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
 /// Async callback type for streaming protocol commands
 pub type StreamCallback = fn(
-    &str,                    // identity
-    &str,                    // bind_alias
-    &str,                    // protocol (e.g., "filetransfer.fastn.com")
-    &str,                    // command (e.g., "transfer.large-file")
-    &PathBuf,               // protocol_dir
+    RequestContext,         // context (identity, bind_alias, protocol_dir, command, args)
     serde_json::Value,      // initial_data
-    &[String],              // args (issue #13: stdargs support)
 ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send>>;
 
-/// Protocol binding context passed to all handlers
+/// Protocol binding context passed to lifecycle handlers
 #[derive(Debug, Clone)]
 pub struct BindingContext {
     pub identity: fastn_id52::PublicKey,
     pub bind_alias: String,
     pub protocol_dir: PathBuf,
+}
+
+/// Request/stream context passed to protocol command handlers
+#[derive(Debug, Clone)]
+pub struct RequestContext {
+    pub identity: fastn_id52::PublicKey,
+    pub bind_alias: String,
+    pub protocol_dir: PathBuf,
+    pub command: String,
+    pub args: Vec<String>,
 }
 
 /// Lifecycle callback types for protocol management (per binding) - clean async fn signatures  
@@ -507,55 +507,3 @@ pub fn serve_all() -> ServeAllBuilder {
     }
 }
 
-/// Echo request handler callback for basic-echo command
-pub fn echo_request_handler(
-    identity: &str,
-    bind_alias: &str,
-    protocol: &str,
-    command: &str,
-    protocol_dir: &PathBuf,
-    request: serde_json::Value,
-    args: &[String],
-) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>> + Send>> {
-    let identity = identity.to_string();
-    let bind_alias = bind_alias.to_string();
-    let protocol = protocol.to_string();
-    let command = command.to_string();
-    let protocol_dir = protocol_dir.clone();
-    let args = args.to_vec();
-    
-    Box::pin(async move {
-        println!("💬 Echo handler called:");
-        println!("   Identity: {}", identity);
-        println!("   Bind alias: {}", bind_alias);
-        println!("   Protocol: {}", protocol);
-        println!("   Command: {}", command);
-        println!("   Protocol dir: {}", protocol_dir.display());
-        println!("   Args: {:?}", args);
-        
-        // Parse request
-        let message = request.get("message")
-            .and_then(|v| v.as_str())
-            .unwrap_or("(no message)");
-        
-        if message.is_empty() {
-            return Err("Message cannot be empty".into());
-        }
-        
-        println!("   Message: '{}'", message);
-        
-        // Create response with args support
-        let args_info = if args.is_empty() {
-            String::new()
-        } else {
-            format!(" [args: {}]", args.join(", "))
-        };
-        
-        let response = serde_json::json!({
-            "echoed": format!("Echo from {} ({}): {}{}", identity, command, message, args_info)
-        });
-        
-        println!("📤 Echo response: {}", response);
-        Ok(response)
-    })
-}
